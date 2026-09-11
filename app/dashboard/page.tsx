@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   useDerivTrading,
   type Account,
+  type OpenContract,
   type Proposal,
   type Purchase,
   type TradeParams,
@@ -28,8 +29,13 @@ export default function Dashboard() {
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const { connected, error: wsError, getProposal, buy } =
-    useDerivTrading(account);
+  const {
+    connected,
+    error: wsError,
+    positions,
+    getProposal,
+    buy,
+  } = useDerivTrading(account);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -259,6 +265,8 @@ export default function Dashboard() {
         )}
       </section>
 
+      <Positions positions={positions} connected={connected} />
+
       {confirming && proposal && (
         <ConfirmDialog
           proposal={proposal}
@@ -273,6 +281,69 @@ export default function Dashboard() {
         />
       )}
     </main>
+  );
+}
+
+function Positions({
+  positions,
+  connected,
+}: {
+  positions: OpenContract[];
+  connected: boolean;
+}) {
+  if (!connected && positions.length === 0) return null;
+
+  // Live contracts first, then most recently settled.
+  const sorted = [...positions].sort((a, b) => {
+    if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1;
+    return b.contract_id - a.contract_id;
+  });
+
+  return (
+    <section className="positions">
+      <h3>Positions</h3>
+      {sorted.length === 0 ? (
+        <p className="empty">No open contracts.</p>
+      ) : (
+        <ul>
+          {sorted.map((c) => {
+            const up = c.profit >= 0;
+            const settled = c.is_sold || c.is_expired;
+            return (
+              <li key={c.contract_id} className={settled ? 'settled' : ''}>
+                <div className="pos-head">
+                  <span className="pos-code">{c.longcode}</span>
+                  <span className={`pos-status status-${c.status ?? 'open'}`}>
+                    {(c.status ?? 'open').toUpperCase()}
+                  </span>
+                </div>
+                <div className="pos-row">
+                  <span>
+                    Stake {c.buy_price.toFixed(2)} {c.currency}
+                  </span>
+                  <span>
+                    Payout {c.payout.toFixed(2)} {c.currency}
+                  </span>
+                  <span className={up ? 'pnl-up' : 'pnl-down'}>
+                    {up ? '+' : ''}
+                    {c.profit.toFixed(2)} {c.currency}
+                    {c.profit_percentage != null &&
+                      ` (${up ? '+' : ''}${c.profit_percentage.toFixed(1)}%)`}
+                  </span>
+                </div>
+                {!settled && c.current_spot != null && (
+                  <div className="pos-spot">
+                    Entry {c.entry_spot?.toFixed(4) ?? '—'} · Now{' '}
+                    {c.current_spot.toFixed(4)}
+                    {c.tick_count ? ` · ${c.tick_count} ticks` : ''}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

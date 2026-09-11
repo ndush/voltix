@@ -36,6 +36,66 @@ export type TradeParams = {
   underlying_symbol: string;
 };
 
+/**
+ * A live contract.
+ *
+ * Deriv sends the monetary fields as strings, so they are coerced once here
+ * rather than at every render site.
+ */
+export type OpenContract = {
+  contract_id: number;
+  contract_type: string;
+  underlying_symbol: string;
+  longcode: string;
+  currency: string;
+  buy_price: number;
+  bid_price: number;
+  payout: number;
+  profit: number;
+  profit_percentage: number;
+  entry_spot: number | null;
+  current_spot: number | null;
+  status: 'open' | 'sold' | 'won' | 'lost' | 'cancelled' | null;
+  is_sold: boolean;
+  is_expired: boolean;
+  is_valid_to_sell: boolean;
+  date_expiry: number;
+  tick_count: number | null;
+};
+
+const num = (v: unknown): number => {
+  const n = typeof v === 'string' ? parseFloat(v) : (v as number);
+  return Number.isFinite(n) ? n : 0;
+};
+const numOrNull = (v: unknown): number | null => {
+  if (v == null) return null;
+  const n = typeof v === 'string' ? parseFloat(v) : (v as number);
+  return Number.isFinite(n) ? n : null;
+};
+
+function toOpenContract(c: Record<string, unknown>): OpenContract {
+  return {
+    contract_id: c.contract_id as number,
+    contract_type: (c.contract_type as string) ?? '',
+    underlying_symbol: (c.underlying_symbol as string) ?? '',
+    longcode: (c.longcode as string) ?? '',
+    currency: (c.currency as string) ?? '',
+    buy_price: num(c.buy_price),
+    bid_price: num(c.bid_price),
+    payout: num(c.payout),
+    profit: num(c.profit),
+    profit_percentage: num(c.profit_percentage),
+    entry_spot: numOrNull(c.entry_spot),
+    current_spot: numOrNull(c.current_spot),
+    status: (c.status as OpenContract['status']) ?? null,
+    is_sold: c.is_sold === 1,
+    is_expired: c.is_expired === 1,
+    is_valid_to_sell: c.is_valid_to_sell === 1,
+    date_expiry: (c.date_expiry as number) ?? 0,
+    tick_count: (c.tick_count as number) ?? null,
+  };
+}
+
 type Pending = {
   resolve: (v: Record<string, unknown>) => void;
   reject: (e: Error) => void;
@@ -47,15 +107,29 @@ type Pending = {
  * Deriv's OTP is single-use and expires after 120s, so the URL is fetched
  * fresh each time a socket is opened and never reused across reconnects.
  * Requests are correlated by `req_id` because responses arrive out of order
- * on a shared connection.
+ * on a shared connection; subscriptions reuse their `req_id` on every update,
+ * so they are tracked separately from one-shot requests.
  */
 export function useDerivTrading(account: Account | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const pending = useRef<Map<number, Pending>>(new Map());
+  const streams = useRef<Map<number, (d: Record<string, unknown>) => void>>(
+    new Map()
+  );
   const reqId = useRef(1);
 
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tagged with the account the contracts belong to, so switching accounts
+  // discards the previous list on read instead of resetting state from the
+  // effect body (which would cascade an extra render).
+  const [posState, setPosState] = useState<{
+    accountId: string | null;
+    list: OpenContract[];
+  }>({ accountId: null, list: [] });
+
+  const positions =
+    posState.accountId === (account?.account_id ?? null) ? posState.list : [];
 
   useEffect(() => {
     if (!account) return;
@@ -63,6 +137,7 @@ export function useDerivTrading(account: Account | null) {
     let cancelled = false;
     let socket: WebSocket | null = null;
     const inflight = pending.current;
+    const subs = streams.current;
 
     (async () => {
       setError(null);
@@ -80,7 +155,40 @@ export function useDerivTrading(account: Account | null) {
         socket = new WebSocket(body.url);
         wsRef.current = socket;
 
-        socket.onopen = () => !cancelled && setConnected(true);
+        socket.onopen = () => {
+          if (cancelled) return;
+          setConnected(true);
+          // Streaming every open contract keeps positions current without
+          // polling, and newly bought contracts appear on their own.
+          const id = reqId.current++;
+          subs.set(id, (d) => {
+            const c = d.proposal_open_contract as
+              | Record<string, unknown>
+              | undefined;
+            if (!c?.contract_id) return;
+            const next = toOpenContract(c);
+            setPosState((prev) => {
+              const list =
+                prev.accountId === account.account_id ? prev.list : [];
+              const i = list.findIndex(
+                (p) => p.contract_id === next.contract_id
+              );
+              const updated =
+                i === -1
+                  ? [next, ...list]
+                  : list.map((p, n) => (n === i ? next : p));
+              return { accountId: account.account_id, list: updated };
+            });
+          });
+          socket!.send(
+            JSON.stringify({
+              proposal_open_contract: 1,
+              subscribe: 1,
+              req_id: id,
+            })
+          );
+        };
+
         socket.onclose = () => !cancelled && setConnected(false);
         socket.onerror = () => !cancelled && setError('socket_error');
 
@@ -93,15 +201,23 @@ export function useDerivTrading(account: Account | null) {
           }
           const id = data.req_id as number | undefined;
           if (id == null) return;
-          const waiter = pending.current.get(id);
+
+          const stream = subs.get(id);
+          if (stream) {
+            if (!data.error) stream(data);
+            return;
+          }
+
+          const waiter = inflight.get(id);
           if (!waiter) return;
-          pending.current.delete(id);
+          inflight.delete(id);
           const err = data.error as { message?: string } | undefined;
           if (err) waiter.reject(new Error(err.message ?? 'deriv_error'));
           else waiter.resolve(data);
         };
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'connect_failed');
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : 'connect_failed');
       }
     })();
 
@@ -109,6 +225,7 @@ export function useDerivTrading(account: Account | null) {
       cancelled = true;
       inflight.forEach((p) => p.reject(new Error('disconnected')));
       inflight.clear();
+      subs.clear();
       socket?.close();
       wsRef.current = null;
     };
@@ -159,5 +276,5 @@ export function useDerivTrading(account: Account | null) {
     [send]
   );
 
-  return { connected, error, getProposal, buy };
+  return { connected, error, positions, getProposal, buy };
 }

@@ -82,6 +82,21 @@ Trading runs over Deriv's authenticated WebSocket, not REST. The flow is:
 
 Buying requires the `trade` scope, which the OAuth URL already requests.
 
+### Open positions
+
+`{ proposal_open_contract: 1, subscribe: 1 }` with no `contract_id` streams
+every open contract on the account, so positions stay live without polling and
+a newly bought contract appears on its own.
+
+Deriv sends the monetary fields on this message as **strings**
+(`buy_price`, `bid_price`, `payout`, `profit`, `current_spot`, `sell_price`);
+only `profit_percentage` is a number. They are coerced once in
+`toOpenContract`. Calling `.toFixed()` on the raw values throws.
+
+Subscription updates reuse the original `req_id` on every message, so the hook
+tracks streams separately from one-shot requests, which are resolved and
+discarded after their first response.
+
 ### Real-money safeguards
 
 - The account selector defaults to a demo account when one exists.
