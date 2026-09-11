@@ -4,7 +4,10 @@ You do not need GitHub, and you cannot break the site from here.
 
 ## Signing in
 
-Go to **/admin** on the site and enter the password you were given.
+Go to **/admin**, type your email, and press **Email me a link**. Open the
+email and click **Sign in**. There is no password to remember.
+
+The link works for 10 minutes. If it expires, just ask for another.
 
 ## What you can change
 
@@ -53,8 +56,10 @@ keys with a pattern, since both reach other systems.
 
 | Variable | Purpose |
 | --- | --- |
-| `ADMIN_PASSWORD` | Password for `/admin`. Make it long. |
-| `SESSION_SECRET` | Signs the admin session cookie. Already set. |
+| `ADMIN_EMAILS` | Comma-separated list of who may sign in, e.g. `you@x.com,client@y.com` |
+| `SESSION_SECRET` | Signs the sign-in links and session cookies. Already set. |
+| `RESEND_API_KEY` | Resend API key for sending the sign-in emails |
+| `RESEND_FROM` | Sender address, e.g. `admin@yourdomain.com` |
 | `GITHUB_REPO` | `ndush/voltix` |
 | `GITHUB_TOKEN` | Fine-grained PAT, **Contents: Read and write**, scoped to this repository only |
 | `GITHUB_BRANCH` | Optional, defaults to `main` |
@@ -64,7 +69,27 @@ tokens → Fine-grained tokens**. Give it access to `ndush/voltix` alone and the
 single **Contents** permission. It can commit to this repository, so treat it
 as a credential: it belongs in Vercel's environment variables and nowhere else.
 
-The admin session is a stateless HMAC of an expiry timestamp, valid 8 hours.
-There is no user store; the password is shared. If it leaks, change
-`ADMIN_PASSWORD` and every existing session stays valid until it expires —
-rotate `SESSION_SECRET` too if you need to invalidate them immediately.
+## Access and sessions
+
+Sign-in is passwordless. A request emails an HMAC-signed link valid 10 minutes;
+redeeming it sets an HMAC-signed session cookie valid 8 hours. Both carry the
+editor's address, so each save is committed with that person as the git author
+and the history is a real audit trail.
+
+Access is governed entirely by `ADMIN_EMAILS`. Removing someone revokes them
+immediately, including any unexpired link they already hold, because the
+allowlist is rechecked on every request. To invalidate live sessions as well,
+rotate `SESSION_SECRET`.
+
+`/api/admin/request-link` answers identically for every address, so it cannot
+be used to discover who can administer the site.
+
+**Known limitation:** links are stateless, so a link cannot be marked used and
+is replayable within its 10-minute window by anyone who obtains it. Making it
+single-use requires somewhere to record spent tokens.
+
+**Before real use:** without a verified domain, Resend only delivers to the
+address that owns the Resend account, so your client will not receive links
+until a domain is verified. Until `RESEND_API_KEY` is set, links are written to
+the Vercel runtime logs instead of being emailed — usable for testing, but
+anyone who can read those logs can sign in.

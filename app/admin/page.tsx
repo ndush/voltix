@@ -7,7 +7,9 @@ type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
 
 export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const [password, setPassword] = useState('');
+  const [editor, setEditor] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [linkSent, setLinkSent] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [content, setContent] = useState<SiteContent | null>(null);
   const [sha, setSha] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export default function Admin() {
       authed: true as const,
       content: body.content as SiteContent,
       sha: body.sha as string,
+      editor: body.editor as string,
     };
   }, []);
 
@@ -46,14 +49,11 @@ export default function Admin() {
       if ('content' in r && r.content) {
         setContent(r.content);
         setSha(r.sha ?? null);
+        setEditor(r.editor ?? null);
       }
     },
     []
   );
-
-  const load = useCallback(async () => {
-    apply(await fetchContent());
-  }, [apply, fetchContent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,23 +66,29 @@ export default function Admin() {
     };
   }, [apply, fetchContent]);
 
-  async function login(e: React.FormEvent) {
+  async function requestLink(e: React.FormEvent) {
     e.preventDefault();
     setLoginError(null);
-    const res = await fetch('/api/admin/login', {
+    const res = await fetch('/api/admin/request-link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email }),
     });
+    const b = await res.json().catch(() => ({}));
     if (res.ok) {
-      setPassword('');
-      await load();
+      setLinkSent(true);
+      if (b.emailNotConfigured) {
+        setLoginError(
+          'No email service is configured, so nothing was sent. The link is in the Vercel runtime logs.'
+        );
+      }
     } else {
-      const b = await res.json().catch(() => ({}));
       setLoginError(
         b.error === 'not_configured'
-          ? 'Admin is not configured yet. Set ADMIN_PASSWORD in Vercel.'
-          : 'Wrong password.'
+          ? 'Admin is not set up yet. ADMIN_EMAILS is missing in Vercel.'
+          : b.error === 'invalid_email'
+            ? 'That does not look like an email address.'
+            : 'Could not send the link. Try again.'
       );
     }
   }
@@ -127,20 +133,44 @@ export default function Admin() {
   if (!authed) {
     return (
       <main className="admin admin-login">
-        <form onSubmit={login} className="login-card">
+        <form onSubmit={requestLink} className="login-card">
           <h1>Voltix admin</h1>
-          <p className="admin-muted">Enter the password to edit site content.</p>
-          <input
-            type="password"
-            value={password}
-            autoFocus
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-          />
-          {loginError && <p className="admin-error">{loginError}</p>}
-          <button type="submit" className="btn-primary">
-            Sign in
-          </button>
+          {linkSent ? (
+            <>
+              <p className="admin-success">
+                If that address can edit this site, a sign-in link is on its
+                way. It expires in 10 minutes.
+              </p>
+              {loginError && <p className="admin-error">{loginError}</p>}
+              <button
+                type="button"
+                onClick={() => {
+                  setLinkSent(false);
+                  setLoginError(null);
+                }}
+              >
+                Use a different address
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="admin-muted">
+                Enter your email and we will send you a sign-in link. No
+                password to remember.
+              </p>
+              <input
+                type="email"
+                value={email}
+                autoFocus
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+              {loginError && <p className="admin-error">{loginError}</p>}
+              <button type="submit" className="btn-primary">
+                Email me a link
+              </button>
+            </>
+          )}
         </form>
       </main>
     );
@@ -179,6 +209,7 @@ export default function Admin() {
       <header className="admin-head">
         <h1>Site content</h1>
         <div className="admin-actions">
+          {editor && <span className="admin-who">{editor}</span>}
           <a href="/" target="_blank" rel="noreferrer">
             View site ↗
           </a>
@@ -187,6 +218,8 @@ export default function Admin() {
               await fetch('/api/admin/logout', { method: 'POST' });
               setAuthed(false);
               setContent(null);
+              setEditor(null);
+              setLinkSent(false);
             }}
           >
             Sign out

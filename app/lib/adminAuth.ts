@@ -1,13 +1,21 @@
 import crypto from 'crypto';
 
 /**
- * Stateless admin session.
+ * Passwordless admin auth.
  *
- * A signed, expiring token in an httpOnly cookie. There is no user store: the
- * single shared password lives in ADMIN_PASSWORD, and SESSION_SECRET signs the
- * cookie so it cannot be forged client-side.
+ * Two signed, expiring tokens, both HMAC'd with SESSION_SECRET:
+ *  - a magic-link token, valid 10 minutes, emailed to the editor
+ *  - a session token, valid 8 hours, stored in an httpOnly cookie
+ *
+ * Both carry the editor's email, so saves can be attributed to a person
+ * rather than to a shared login. There is no user table: who may sign in is
+ * whoever appears in ADMIN_EMAILS.
  */
-const MAX_AGE_SECONDS = 60 * 60 * 8;
+const MAGIC_TTL_MS = 10 * 60 * 1000;
+const SESSION_TTL_SECONDS = 60 * 60 * 8;
+
+export const SESSION_COOKIE = 'admin_session';
+export const SESSION_MAX_AGE = SESSION_TTL_SECONDS;
 
 function secret(): string {
   const s = process.env.SESSION_SECRET;
@@ -15,48 +23,86 @@ function secret(): string {
   return s;
 }
 
-/** Constant-time compare so a wrong password cannot be found byte by byte. */
-export function passwordMatches(supplied: string): boolean {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) {
-    // Still compare, so the reply time does not reveal the length.
-    crypto.timingSafeEqual(b, b);
-    return false;
-  }
-  return crypto.timingSafeEqual(a, b);
-}
-
-export function createSession(): string {
-  const expires = Date.now() + MAX_AGE_SECONDS * 1000;
-  const payload = String(expires);
-  const sig = crypto
+function sign(payload: string, kind: string): string {
+  return crypto
     .createHmac('sha256', secret())
-    .update(payload)
+    .update(`${kind}:${payload}`)
     .digest('base64url');
-  return `${payload}.${sig}`;
 }
 
-export function sessionIsValid(token: string | undefined): boolean {
-  if (!token) return false;
-  const [payload, sig] = token.split('.');
-  if (!payload || !sig) return false;
-
-  const expected = crypto
-    .createHmac('sha256', secret())
-    .update(payload)
-    .digest('base64url');
-
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  if (!crypto.timingSafeEqual(a, b)) return false;
-
-  const expires = Number(payload);
-  return Number.isFinite(expires) && expires > Date.now();
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  if (x.length !== y.length) return false;
+  return crypto.timingSafeEqual(x, y);
 }
 
-export const SESSION_COOKIE = 'admin_session';
-export const SESSION_MAX_AGE = MAX_AGE_SECONDS;
+export function normaliseEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** Who is allowed to sign in, from a comma-separated ADMIN_EMAILS. */
+export function allowedEmails(): string[] {
+  return (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((e) => normaliseEmail(e))
+    .filter(Boolean);
+}
+
+export function isAllowedEmail(email: string): boolean {
+  const list = allowedEmails();
+  const target = normaliseEmail(email);
+  // Compare against every entry so the reply time does not reveal a match.
+  let found = false;
+  for (const e of list) if (safeEqual(e.padEnd(320), target.padEnd(320))) found = true;
+  return found;
+}
+
+function encode(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64url');
+}
+function decode(value: string): string {
+  return Buffer.from(value, 'base64url').toString('utf8');
+}
+
+export function createMagicToken(email: string): string {
+  const expires = Date.now() + MAGIC_TTL_MS;
+  // A nonce makes each link distinct even for the same address and minute.
+  const nonce = crypto.randomBytes(8).toString('base64url');
+  const payload = `${encode(normaliseEmail(email))}.${expires}.${nonce}`;
+  return `${payload}.${sign(payload, 'magic')}`;
+}
+
+export function verifyMagicToken(token: string | undefined): string | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 4) return null;
+  const [emailPart, expiresPart, nonce, sig] = parts;
+  const payload = `${emailPart}.${expiresPart}.${nonce}`;
+  if (!safeEqual(sig, sign(payload, 'magic'))) return null;
+  const expires = Number(expiresPart);
+  if (!Number.isFinite(expires) || expires <= Date.now()) return null;
+  const email = decode(emailPart);
+  // Revoking access by removing someone from ADMIN_EMAILS must take effect
+  // even if they already hold an unexpired link.
+  return isAllowedEmail(email) ? email : null;
+}
+
+export function createSession(email: string): string {
+  const expires = Date.now() + SESSION_TTL_SECONDS * 1000;
+  const payload = `${encode(normaliseEmail(email))}.${expires}`;
+  return `${payload}.${sign(payload, 'session')}`;
+}
+
+export function readSession(token: string | undefined): string | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [emailPart, expiresPart, sig] = parts;
+  const payload = `${emailPart}.${expiresPart}`;
+  if (!safeEqual(sig, sign(payload, 'session'))) return null;
+  const expires = Number(expiresPart);
+  if (!Number.isFinite(expires) || expires <= Date.now()) return null;
+  const email = decode(emailPart);
+  return isAllowedEmail(email) ? email : null;
+}

@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
-import { SESSION_COOKIE, sessionIsValid } from '@/app/lib/adminAuth';
+import { SESSION_COOKIE, readSession } from '@/app/lib/adminAuth';
 import type { SiteContent } from '@/app/lib/content';
 
 const CONTENT_PATH = 'content/site.json';
@@ -21,9 +21,10 @@ function gh(token: string) {
   };
 }
 
-async function requireSession() {
+/** Returns the signed-in editor's email, or null. */
+async function currentEditor(): Promise<string | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  return sessionIsValid(token);
+  return readSession(token);
 }
 
 /**
@@ -92,7 +93,8 @@ function validate(body: unknown): { ok: true; value: SiteContent } | { ok: false
 }
 
 export async function GET() {
-  if (!(await requireSession()))
+  const editor = await currentEditor();
+  if (!editor)
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const cfg = ghConfig();
@@ -115,11 +117,16 @@ export async function GET() {
 
   const file = await res.json();
   const decoded = Buffer.from(file.content, 'base64').toString('utf8');
-  return NextResponse.json({ content: JSON.parse(decoded), sha: file.sha });
+  return NextResponse.json({
+    content: JSON.parse(decoded),
+    sha: file.sha,
+    editor,
+  });
 }
 
 export async function PUT(req: NextRequest) {
-  if (!(await requireSession()))
+  const editor = await currentEditor();
+  if (!editor)
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const cfg = ghConfig();
@@ -151,7 +158,10 @@ export async function PUT(req: NextRequest) {
       method: 'PUT',
       headers: { ...gh(cfg.token), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: 'Update site content from admin',
+        // Attribute the commit to whoever signed in, so the repository
+        // history is a real audit trail rather than one shared identity.
+        message: `Update site content from admin (${editor})`,
+        author: { name: editor.split('@')[0], email: editor },
         content: Buffer.from(body, 'utf8').toString('base64'),
         // Passing the sha we read makes this a compare-and-set: a concurrent
         // edit is rejected rather than silently overwritten.
