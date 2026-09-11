@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { Campaign, SiteContent } from '../lib/content';
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
@@ -8,9 +9,6 @@ type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
 export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [editor, setEditor] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [linkSent, setLinkSent] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
   const [content, setContent] = useState<SiteContent | null>(null);
   const [sha, setSha] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -66,33 +64,6 @@ export default function Admin() {
     };
   }, [apply, fetchContent]);
 
-  async function requestLink(e: React.FormEvent) {
-    e.preventDefault();
-    setLoginError(null);
-    const res = await fetch('/api/admin/request-link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const b = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setLinkSent(true);
-      if (b.emailNotConfigured) {
-        setLoginError(
-          'No email service is configured, so nothing was sent. The link is in the Vercel runtime logs.'
-        );
-      }
-    } else {
-      setLoginError(
-        b.error === 'not_configured'
-          ? 'Admin is not set up yet. ADMIN_EMAILS is missing in Vercel.'
-          : b.error === 'invalid_email'
-            ? 'That does not look like an email address.'
-            : 'Could not send the link. Try again.'
-      );
-    }
-  }
-
   async function save() {
     if (!content || !sha) return;
     setStatus({ kind: 'saving' });
@@ -131,49 +102,7 @@ export default function Admin() {
   }
 
   if (!authed) {
-    return (
-      <main className="admin admin-login">
-        <form onSubmit={requestLink} className="login-card">
-          <h1>Voltix admin</h1>
-          {linkSent ? (
-            <>
-              <p className="admin-success">
-                If that address can edit this site, a sign-in link is on its
-                way. It expires in 10 minutes.
-              </p>
-              {loginError && <p className="admin-error">{loginError}</p>}
-              <button
-                type="button"
-                onClick={() => {
-                  setLinkSent(false);
-                  setLoginError(null);
-                }}
-              >
-                Use a different address
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="admin-muted">
-                Enter your email and we will send you a sign-in link. No
-                password to remember.
-              </p>
-              <input
-                type="email"
-                value={email}
-                autoFocus
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-              {loginError && <p className="admin-error">{loginError}</p>}
-              <button type="submit" className="btn-primary">
-                Email me a link
-              </button>
-            </>
-          )}
-        </form>
-      </main>
-    );
+    return <SignIn />;
   }
 
   if (!content) {
@@ -219,7 +148,6 @@ export default function Admin() {
               setAuthed(false);
               setContent(null);
               setEditor(null);
-              setLinkSent(false);
             }}
           >
             Sign out
@@ -455,5 +383,54 @@ function CampaignFields({
         />
       </label>
     </section>
+  );
+}
+
+const SIGN_IN_ERRORS: Record<string, string> = {
+  not_allowed:
+    'That Google account is not on the list of editors for this site. Ask the site owner to add your address.',
+  unverified:
+    'That Google account has no verified email address, so it cannot be used to sign in.',
+  state: 'The sign-in attempt expired. Please try again.',
+  no_code: 'The sign-in attempt expired. Please try again.',
+  token: 'Google could not complete the sign-in. Please try again.',
+  userinfo: 'Google could not complete the sign-in. Please try again.',
+  not_configured:
+    'Google sign-in is not set up yet. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are missing.',
+};
+
+/** The callback redirects here with ?error= when sign-in fails. */
+function SignInError() {
+  const code = useSearchParams().get('error');
+  if (!code) return null;
+  return (
+    <p className="admin-error">
+      {SIGN_IN_ERRORS[code] ?? 'Sign-in failed. Please try again.'}
+    </p>
+  );
+}
+
+function SignIn() {
+  return (
+    <main className="admin admin-login">
+      <div className="login-card">
+        <h1>Voltix admin</h1>
+        <p className="admin-muted">
+          Sign in with the Google account the site owner added as an editor.
+        </p>
+        <Suspense fallback={null}>
+          <SignInError />
+        </Suspense>
+        <a className="google-btn" href="/api/admin/google/start">
+          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.3z" />
+            <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.2l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z" />
+            <path fill="#FBBC05" d="M11.8 28.4c-.4-1.3-.7-2.7-.7-4.4s.3-3 .7-4.4v-5.7H4.5C2.9 17 2 20.4 2 24s.9 7 2.5 10.1l7.3-5.7z" />
+            <path fill="#EA4335" d="M24 10.6c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4 29.9 2 24 2 15.5 2 8.1 6.8 4.5 13.9l7.3 5.7c1.7-5.2 6.5-9 12.2-9z" />
+          </svg>
+          Sign in with Google
+        </a>
+      </div>
+    </main>
   );
 }
