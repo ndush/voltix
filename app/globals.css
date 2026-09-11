@@ -729,3 +729,204 @@ a.logo {
     font-size: 32px;
   }
 }
+
+.admin {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.admin-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  background: #131824;
+  border: 1px solid #1c2230;
+  border-radius: 14px;
+  padding: 32px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-card h1 {
+  font-size: 20px;
+}
+
+.admin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.admin-head h1 {
+  font-size: 22px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-actions a {
+  color: #b0b6c0;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.admin-actions button {
+  background: #1c2230;
+  color: #e6e8eb;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-section {
+  background: #131824;
+  border: 1px solid #1c2230;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.admin-section h2 {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.admin-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #b0b6c0;
+  margin-top: 14px;
+}
+
+.admin input,
+.admin textarea {
+  background: #0b0e14;
+  border: 1px solid #1c2230;
+  border-radius: 8px;
+  color: #e6e8eb;
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+}
+
+.admin textarea {
+  resize: vertical;
+}
+
+.admin-muted {
+  color: #6b7280;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.admin-error {
+  color: #f87171;
+  font-size: 13px;
+  margin: 10px 0;
+}
+
+.admin-success {
+  color: #4ade80;
+  font-size: 13px;
+  margin: 10px 0;
+}
+
+.admin-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.admin-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #1c2230;
+}
+
+.admin-remove {
+  background: transparent;
+  border: 1px solid #7f1d1d;
+  color: #f87171;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+.admin-add {
+  margin-top: 14px;
+  background: transparent;
+  border: 1px dashed #2a3446;
+  color: #b0b6c0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.campaign {
+  border: 1px solid #1c2230;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+.campaign summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.campaign summary code {
+  color: #6b7280;
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.campaign .admin-section {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-foot {
+  color: #4b5563;
+  font-size: 12px;
+  margin-top: 24px;
+}
+
+@media (max-width: 520px) {
+  .admin-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
