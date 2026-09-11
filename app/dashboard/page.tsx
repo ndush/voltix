@@ -51,10 +51,18 @@ export default function Dashboard() {
   const [duration, setDuration] = useState('5');
   const [durationUnit, setDurationUnit] = useState<DurationUnit>('t');
   const [sellingId, setSellingId] = useState<number | null>(null);
-  const [expiring, setExpiring] = useState(false);
+  // 'unavailable' = Deriv never issued a refresh token, so renewal was never
+  // possible; 'failed' = a refresh was attempted and rejected. Different
+  // situations, and saying "could not be renewed" for the first is misleading.
+  const [expiry, setExpiry] = useState<'ok' | 'unavailable' | 'failed'>('ok');
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [confirming, setConfirming] = useState<TradeParams | null>(null);
-  const [purchase, setPurchase] = useState<Purchase | null>(null);
+  // Tagged with the account it happened on. A receipt from a demo trade must
+  // never linger after switching to a real account, where it reads as though
+  // real money was just spent.
+  const [purchase, setPurchase] = useState<
+    (Purchase & { accountId: string }) | null
+  >(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -120,13 +128,14 @@ export default function Dashboard() {
         try {
           const res = await fetch('/api/auth/refresh', { method: 'POST' });
           if (res.ok) {
-            setExpiring(false);
+            setExpiry('ok');
             schedule();
-          } else {
-            setExpiring(true);
+            return;
           }
+          const body = await res.json().catch(() => ({}));
+          setExpiry(body.error === 'no_refresh_token' ? 'unavailable' : 'failed');
         } catch {
-          setExpiring(true);
+          setExpiry('failed');
         }
       }, delay);
     };
@@ -217,7 +226,7 @@ export default function Dashboard() {
       setTradeError(null);
       try {
         const done = await buy(quote.id, quote.ask_price);
-        setPurchase(done);
+        setPurchase({ ...done, accountId: account?.account_id ?? '' });
         setConfirming(null);
         setProposal(null);
         setAccounts((prev) =>
@@ -290,12 +299,15 @@ export default function Dashboard() {
                 <select
                   className="acct-select"
                   value={account?.account_id ?? ''}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setAccount(
                       accounts.find((a) => a.account_id === e.target.value) ??
                         null
-                    )
-                  }
+                    );
+                    setTradeError(null);
+                    setProposal(null);
+                    setConfirming(null);
+                  }}
                 >
                   {accounts.map((a) => (
                     <option key={a.account_id} value={a.account_id}>
@@ -316,10 +328,11 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {expiring && (
+      {expiry !== 'ok' && (
         <div className="expiry-banner">
-          Your Deriv session is about to expire and could not be renewed
-          automatically.{' '}
+          {expiry === 'unavailable'
+            ? 'Your Deriv session expires shortly. Deriv does not issue renewable sessions for this app, so you will need to sign in again to keep trading.'
+            : 'Your Deriv session is about to expire and could not be renewed.'}{' '}
           <button onClick={() => router.replace('/')}>Log in again</button>
         </div>
       )}
@@ -420,7 +433,7 @@ export default function Dashboard() {
 
         {tradeError && <p className="trade-error">{tradeError}</p>}
 
-        {purchase && (
+        {purchase && purchase.accountId === account?.account_id && (
           <div className="receipt">
             <strong>Contract purchased</strong>
             <p>{purchase.longcode}</p>
