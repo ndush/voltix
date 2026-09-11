@@ -11,18 +11,30 @@ type Account = {
 export default function Dashboard() {
   const router = useRouter();
   const [account, setAccount] = useState<Account | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [tick, setTick] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Fetch account info
     fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((data) => {
-        setAccount(data.accounts?.[0] ?? null);
+      .then(async (r) => ({ ok: r.ok, body: await r.json() }))
+      .then(({ ok, body }) => {
+        if (!ok) {
+          setAccountError(
+            body.status ? `${body.error} (${body.status})` : body.error
+          );
+        } else if (!body.accounts?.length) {
+          setAccountError('no_accounts_returned');
+        } else {
+          setAccount(body.accounts[0]);
+        }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setAccountError('request_failed');
+        setLoading(false);
+      });
 
     // Connect to Deriv public WebSocket for live ticks
     const ws = new WebSocket(
@@ -63,7 +75,13 @@ export default function Dashboard() {
         <div className="logo">Voltix</div>
         <div className="account">
           <span>
-            Balance: {account?.balance ?? '—'} {account?.currency ?? ''}
+            {accountError ? (
+              <span className="acct-error">Balance unavailable: {accountError}</span>
+            ) : (
+              <>
+                Balance: {account?.balance ?? '—'} {account?.currency ?? ''}
+              </>
+            )}
           </span>
           <button onClick={logout}>Logout</button>
         </div>
