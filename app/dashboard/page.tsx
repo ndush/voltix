@@ -25,6 +25,9 @@ const DURATION_UNITS: { value: DurationUnit; label: string }[] = [
 // move rejects the sale instead of filling far below what was displayed.
 const SELL_SLIPPAGE = 0.95;
 
+const unitLabel = (u: DurationUnit) =>
+  DURATION_UNITS.find((d) => d.value === u)?.label ?? u;
+
 const SYMBOL = 'R_75';
 
 // Values are coerced at the API boundary, but Deriv has twice returned a
@@ -61,9 +64,10 @@ export default function Dashboard() {
     history,
     getProposal,
     buy,
+    limits,
     sell,
     refreshHistory,
-  } = useDerivTrading(account);
+  } = useDerivTrading(account, SYMBOL);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -144,16 +148,24 @@ export default function Dashboard() {
   }, []);
 
   const isReal = account?.account_type === 'real';
+  // Derived rather than synced through an effect: if Deriv does not offer the
+  // selected unit, fall back to one it does without an extra render pass.
+  const effectiveUnit: DurationUnit =
+    limits && !limits.durations[durationUnit]
+      ? (DURATION_UNITS.find((u) => limits.durations[u.value])?.value ??
+        durationUnit)
+      : durationUnit;
+  const range = limits?.durations[effectiveUnit] ?? null;
 
   const params = useCallback(
     (contract_type: 'CALL' | 'PUT'): TradeParams => ({
       contract_type,
       amount: Number(stake),
       duration: Number(duration),
-      duration_unit: durationUnit,
+      duration_unit: effectiveUnit,
       underlying_symbol: SYMBOL,
     }),
-    [stake, duration, durationUnit]
+    [stake, duration, effectiveUnit]
   );
 
   // Quote first, then confirm. A real-money account always sees the dialog;
@@ -164,6 +176,22 @@ export default function Dashboard() {
     const p = params(contract_type);
     if (!(p.amount > 0) || !(p.duration > 0)) {
       setTradeError('Stake and duration must be greater than zero.');
+      return;
+    }
+    if (range && (p.duration < range.min || p.duration > range.max)) {
+      setTradeError(
+        `Duration must be between ${range.min} and ${range.max} ${unitLabel(
+          durationUnit
+        )}.`
+      );
+      return;
+    }
+    if (limits?.minStake != null && p.amount < limits.minStake) {
+      setTradeError(`Minimum stake is ${limits.minStake}.`);
+      return;
+    }
+    if (limits?.maxStake != null && p.amount > limits.maxStake) {
+      setTradeError(`Maximum stake is ${limits.maxStake}.`);
       return;
     }
     setBusy(true);
@@ -317,7 +345,8 @@ export default function Dashboard() {
             Duration
             <input
               type="number"
-              min="1"
+              min={range?.min ?? 1}
+              max={range?.max}
               step="1"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
@@ -326,12 +355,24 @@ export default function Dashboard() {
           <label>
             Unit
             <select
-              value={durationUnit}
-              onChange={(e) =>
-                setDurationUnit(e.target.value as DurationUnit)
-              }
+              value={effectiveUnit}
+              onChange={(e) => {
+                const next = e.target.value as DurationUnit;
+                setDurationUnit(next);
+                // Snap the duration into the new unit's range so the form is
+                // never showing a value Deriv would reject.
+                const r = limits?.durations[next];
+                if (r) {
+                  const n = Number(duration);
+                  if (!Number.isFinite(n) || n < r.min)
+                    setDuration(String(r.min));
+                  else if (n > r.max) setDuration(String(r.max));
+                }
+              }}
             >
-              {DURATION_UNITS.map((u) => (
+              {DURATION_UNITS.filter(
+                (u) => !limits || limits.durations[u.value]
+              ).map((u) => (
                 <option key={u.value} value={u.value}>
                   {u.label}
                 </option>
@@ -339,6 +380,14 @@ export default function Dashboard() {
             </select>
           </label>
         </div>
+
+        {range && (
+          <p className="range-hint">
+            {range.min}–{range.max} {unitLabel(effectiveUnit)}
+            {limits?.minStake != null &&
+              ` · stake ${limits.minStake}–${limits.maxStake ?? '∞'}`}
+          </p>
+        )}
 
         <div className="conn">
           {connected ? (

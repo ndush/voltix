@@ -469,3 +469,9 @@ body {
   font-weight: 700;
   cursor: pointer;
 }
+
+.range-hint {
+  font-size: 11px;
+  color: #6b7280;
+  margin: -8px 0 14px;
+}

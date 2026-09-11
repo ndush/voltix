@@ -108,6 +108,20 @@ Subscription updates reuse the original `req_id` on every message, so the hook
 tracks streams separately from one-shot requests, which are resolved and
 discarded after their first response.
 
+### Duration and stake limits
+
+Deriv rejects durations it does not offer ("Trading is not offered for this
+duration"), and the valid range differs per unit: R_75 rise/fall accepts a few
+ticks, but time-based durations start well above 2 seconds.
+
+Rather than hardcoding this, `contracts_for` is queried on connect and
+`min_contract_duration` / `max_contract_duration` (strings like `"15s"`,
+`"10t"`, `"1d"`) are parsed into per-unit bounds. Time ranges are normalised to
+seconds and re-expressed in each unit; ticks are kept separate because they are
+not time. A unit that cannot express a valid duration is not offered at all.
+
+`min_stake` / `max_stake` from the same call bound the stake field.
+
 ### Early sell
 
 `{ sell: <contract_id>, price: <minimum> }` closes a position before expiry.
@@ -116,7 +130,9 @@ a **sell** it is a **minimum** (a floor), and `0` means "sell at market" —
 accepting any price at all. The UI quotes a floor 5% below the displayed bid,
 which rejects a large adverse move while tolerating ordinary tick noise.
 
-Only offered when Deriv reports `is_valid_to_sell` on the contract.
+Only offered when Deriv reports `is_valid_to_sell` on the contract. Note that
+tick-duration contracts are generally not sellable, so the button will not
+appear on them — use a time-based duration to exercise early sell.
 
 ### History
 

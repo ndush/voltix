@@ -162,6 +162,83 @@ function toHistoryRow(t: Record<string, unknown>): HistoryRow {
   };
 }
 
+export type UnitRange = { min: number; max: number };
+
+export type ContractLimits = {
+  /** Allowed duration range per unit; a missing unit is not offered. */
+  durations: Partial<Record<DurationUnit, UnitRange>>;
+  minStake: number | null;
+  maxStake: number | null;
+};
+
+const UNIT_SECONDS: Record<Exclude<DurationUnit, 't'>, number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400,
+};
+
+/** Deriv expresses durations as "15s", "10t", "1d". */
+function parseDuration(v: unknown): { n: number; u: DurationUnit } | null {
+  if (typeof v !== 'string') return null;
+  const m = /^(\d+)([tsmhd])$/.exec(v.trim());
+  if (!m) return null;
+  return { n: parseInt(m[1], 10), u: m[2] as DurationUnit };
+}
+
+/**
+ * Turns `contracts_for` entries into per-unit duration bounds.
+ *
+ * Deriv reports a single range per contract entry, and a time range such as
+ * 15s-1d spans several units, so the time bounds are normalised to seconds and
+ * re-expressed in each unit. Ticks are kept separate because they are not time.
+ */
+function toLimits(
+  available: Record<string, unknown>[],
+  contractTypes: string[]
+): ContractLimits {
+  let tickMin = Infinity;
+  let tickMax = 0;
+  let minSec = Infinity;
+  let maxSec = 0;
+  let minStake: number | null = null;
+  let maxStake: number | null = null;
+
+  for (const a of available) {
+    if (!contractTypes.includes(a.contract_type as string)) continue;
+
+    const lo = parseDuration(a.min_contract_duration);
+    const hi = parseDuration(a.max_contract_duration);
+    if (lo && hi && lo.u === 't' && hi.u === 't') {
+      tickMin = Math.min(tickMin, lo.n);
+      tickMax = Math.max(tickMax, hi.n);
+    } else if (lo && hi && lo.u !== 't' && hi.u !== 't') {
+      minSec = Math.min(minSec, lo.n * UNIT_SECONDS[lo.u]);
+      maxSec = Math.max(maxSec, hi.n * UNIT_SECONDS[hi.u]);
+    }
+
+    const ms = a.min_stake as number | null;
+    const xs = a.max_stake as number | null;
+    if (typeof ms === 'number') minStake = Math.min(minStake ?? ms, ms);
+    if (typeof xs === 'number') maxStake = Math.max(maxStake ?? xs, xs);
+  }
+
+  const durations: Partial<Record<DurationUnit, UnitRange>> = {};
+  if (tickMax > 0 && Number.isFinite(tickMin))
+    durations.t = { min: tickMin, max: tickMax };
+  if (maxSec > 0 && Number.isFinite(minSec)) {
+    for (const u of ['s', 'm', 'h', 'd'] as const) {
+      const step = UNIT_SECONDS[u];
+      const min = Math.max(1, Math.ceil(minSec / step));
+      const max = Math.floor(maxSec / step);
+      // Only offer a unit that can actually express a valid duration.
+      if (max >= min && min * step >= minSec) durations[u] = { min, max };
+    }
+  }
+
+  return { durations, minStake, maxStake };
+}
+
 type Pending = {
   resolve: (v: Record<string, unknown>) => void;
   reject: (e: Error) => void;
@@ -176,7 +253,7 @@ type Pending = {
  * on a shared connection; subscriptions reuse their `req_id` on every update,
  * so they are tracked separately from one-shot requests.
  */
-export function useDerivTrading(account: Account | null) {
+export function useDerivTrading(account: Account | null, symbol: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const pending = useRef<Map<number, Pending>>(new Map());
   const streams = useRef<Map<number, (d: Record<string, unknown>) => void>>(
@@ -197,6 +274,7 @@ export function useDerivTrading(account: Account | null) {
     accountId: string | null;
     rows: HistoryRow[];
   }>({ accountId: null, rows: [] });
+  const [limits, setLimits] = useState<ContractLimits | null>(null);
 
   const positions =
     posState.accountId === (account?.account_id ?? null) ? posState.list : [];
@@ -284,6 +362,24 @@ export function useDerivTrading(account: Account | null) {
               req_id: hid,
             })
           );
+
+          // Ask Deriv what durations and stakes it will actually accept, so
+          // the form cannot offer a combination it will reject.
+          const cid = reqId.current++;
+          subs.set(cid, (d) => {
+            const cf = d.contracts_for as
+              | { available?: Record<string, unknown>[] }
+              | undefined;
+            if (!cf?.available) return;
+            setLimits(toLimits(cf.available, ['CALL', 'PUT']));
+            subs.delete(cid);
+          });
+          socket!.send(
+            JSON.stringify({
+              contracts_for: symbol,
+              req_id: cid,
+            })
+          );
         };
 
         socket.onclose = () => !cancelled && setConnected(false);
@@ -326,7 +422,7 @@ export function useDerivTrading(account: Account | null) {
       socket?.close();
       wsRef.current = null;
     };
-  }, [account]);
+  }, [account, symbol]);
 
   const send = useCallback((payload: Record<string, unknown>) => {
     const socket = wsRef.current;
@@ -412,6 +508,7 @@ export function useDerivTrading(account: Account | null) {
     error,
     positions,
     history,
+    limits,
     getProposal,
     buy,
     sell,
