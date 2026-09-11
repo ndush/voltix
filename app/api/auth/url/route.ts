@@ -17,7 +17,13 @@ export async function GET() {
     response_type: 'code',
     client_id: process.env.DERIV_APP_ID!,
     redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/callback`,
-    scope: 'trade account_manage',
+    // Deriv documents only trade, account_manage, application_read and
+    // payment. It does not document offline_access, and an unsupported scope
+    // can fail the whole authorize request, so requesting a refresh token is
+    // opt-in via DERIV_REQUEST_OFFLINE_ACCESS rather than on by default.
+    scope: process.env.DERIV_REQUEST_OFFLINE_ACCESS === '1'
+      ? 'trade account_manage offline_access'
+      : 'trade account_manage',
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',

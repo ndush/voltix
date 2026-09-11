@@ -419,3 +419,53 @@ body {
   color: #6b7280;
   font-size: 12px;
 }
+
+.fields select {
+  background: #0b0e14;
+  border: 1px solid #1c2230;
+  border-radius: 8px;
+  color: #e6e8eb;
+  padding: 10px;
+  font-size: 15px;
+}
+
+.sell-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: transparent;
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sell-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.history {
+  margin-top: -40px;
+}
+
+.expiry-banner {
+  background: #78350f;
+  color: #fde68a;
+  text-align: center;
+  padding: 10px 20px;
+  font-size: 13px;
+}
+
+.expiry-banner button {
+  margin-left: 10px;
+  background: #fde68a;
+  color: #78350f;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -5,11 +5,25 @@ import { useRouter } from 'next/navigation';
 import {
   useDerivTrading,
   type Account,
+  type DurationUnit,
+  type HistoryRow,
   type OpenContract,
   type Proposal,
   type Purchase,
   type TradeParams,
 } from '../lib/useDerivTrading';
+
+const DURATION_UNITS: { value: DurationUnit; label: string }[] = [
+  { value: 't', label: 'ticks' },
+  { value: 's', label: 'seconds' },
+  { value: 'm', label: 'minutes' },
+  { value: 'h', label: 'hours' },
+  { value: 'd', label: 'days' },
+];
+
+// Selling quotes a floor rather than accepting any price, so a large adverse
+// move rejects the sale instead of filling far below what was displayed.
+const SELL_SLIPPAGE = 0.95;
 
 const SYMBOL = 'R_75';
 
@@ -31,6 +45,9 @@ export default function Dashboard() {
 
   const [stake, setStake] = useState('1');
   const [duration, setDuration] = useState('5');
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>('t');
+  const [sellingId, setSellingId] = useState<number | null>(null);
+  const [expiring, setExpiring] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [confirming, setConfirming] = useState<TradeParams | null>(null);
   const [purchase, setPurchase] = useState<Purchase | null>(null);
@@ -41,8 +58,11 @@ export default function Dashboard() {
     connected,
     error: wsError,
     positions,
+    history,
     getProposal,
     buy,
+    sell,
+    refreshHistory,
   } = useDerivTrading(account);
 
   useEffect(() => {
@@ -72,6 +92,44 @@ export default function Dashboard() {
       });
   }, []);
 
+  // Deriv's access token lasts an hour and its OAuth guide documents no
+  // refresh token, so a refresh may legitimately be impossible. Try it shortly
+  // before expiry; if the server has nothing to refresh with, warn instead of
+  // dumping the user out mid-trade.
+  useEffect(() => {
+    const read = () =>
+      document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('deriv_expires_at='))
+        ?.split('=')[1];
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const schedule = () => {
+      const raw = read();
+      const at = raw ? Number(raw) : NaN;
+      if (!Number.isFinite(at)) return;
+      // One minute of headroom, and never less than five seconds out.
+      const delay = Math.max(5000, at - Date.now() - 60000);
+      timer = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/auth/refresh', { method: 'POST' });
+          if (res.ok) {
+            setExpiring(false);
+            schedule();
+          } else {
+            setExpiring(true);
+          }
+        } catch {
+          setExpiring(true);
+        }
+      }, delay);
+    };
+
+    schedule();
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const ws = new WebSocket(
       'wss://api.derivws.com/trading/v1/options/ws/public'
@@ -92,10 +150,10 @@ export default function Dashboard() {
       contract_type,
       amount: Number(stake),
       duration: Number(duration),
-      duration_unit: 't',
+      duration_unit: durationUnit,
       underlying_symbol: SYMBOL,
     }),
-    [stake, duration]
+    [stake, duration, durationUnit]
   );
 
   // Quote first, then confirm. A real-money account always sees the dialog;
@@ -146,6 +204,30 @@ export default function Dashboard() {
     },
     [buy, account]
   );
+
+  async function sellPosition(c: OpenContract) {
+    setTradeError(null);
+    setSellingId(c.contract_id);
+    try {
+      const result = await sell(
+        c.contract_id,
+        Math.max(0, c.bid_price * SELL_SLIPPAGE)
+      );
+      setAccount((a) => (a ? { ...a, balance: result.balance_after } : a));
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.account_id === account?.account_id
+            ? { ...a, balance: result.balance_after }
+            : a
+        )
+      );
+      await refreshHistory().catch(() => {});
+    } catch (e) {
+      setTradeError(e instanceof Error ? e.message : 'sell_failed');
+    } finally {
+      setSellingId(null);
+    }
+  }
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -202,6 +284,14 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {expiring && (
+        <div className="expiry-banner">
+          Your Deriv session is about to expire and could not be renewed
+          automatically.{' '}
+          <button onClick={() => router.replace('/')}>Log in again</button>
+        </div>
+      )}
+
       {isReal && (
         <div className="real-banner">
           You are trading with real funds. Losses are permanent.
@@ -224,7 +314,7 @@ export default function Dashboard() {
             />
           </label>
           <label>
-            Duration (ticks)
+            Duration
             <input
               type="number"
               min="1"
@@ -232,6 +322,21 @@ export default function Dashboard() {
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
             />
+          </label>
+          <label>
+            Unit
+            <select
+              value={durationUnit}
+              onChange={(e) =>
+                setDurationUnit(e.target.value as DurationUnit)
+              }
+            >
+              {DURATION_UNITS.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
@@ -274,7 +379,15 @@ export default function Dashboard() {
         )}
       </section>
 
-      <Positions positions={positions} connected={connected} />
+      <Positions
+        positions={positions}
+        connected={connected}
+        onSell={sellPosition}
+        sellingId={sellingId}
+        isReal={isReal}
+      />
+
+      <TradeHistory rows={history} />
 
       {confirming && proposal && (
         <ConfirmDialog
@@ -296,9 +409,15 @@ export default function Dashboard() {
 function Positions({
   positions,
   connected,
+  onSell,
+  sellingId,
+  isReal,
 }: {
   positions: OpenContract[];
   connected: boolean;
+  onSell: (c: OpenContract) => void;
+  sellingId: number | null;
+  isReal: boolean;
 }) {
   if (!connected && positions.length === 0) return null;
 
@@ -347,11 +466,72 @@ function Positions({
                     {c.tick_count ? ` · ${c.tick_count} ticks` : ''}
                   </div>
                 )}
+                {!settled && c.is_valid_to_sell && (
+                  <button
+                    className="sell-btn"
+                    disabled={sellingId === c.contract_id}
+                    onClick={() => {
+                      if (
+                        isReal &&
+                        !window.confirm(
+                          `Sell this contract for about ${money(
+                            c.bid_price
+                          )} ${c.currency}?\n\nYou staked ${money(
+                            c.buy_price
+                          )} ${c.currency}. This closes the position now and is final.`
+                        )
+                      )
+                        return;
+                      onSell(c);
+                    }}
+                  >
+                    {sellingId === c.contract_id
+                      ? 'Selling…'
+                      : `Sell now for ~${money(c.bid_price)} ${c.currency}`}
+                  </button>
+                )}
               </li>
             );
           })}
         </ul>
       )}
+    </section>
+  );
+}
+
+function TradeHistory({ rows }: { rows: HistoryRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="positions history">
+      <h3>History</h3>
+      <ul>
+        {rows.map((r) => {
+          const up = r.profit >= 0;
+          return (
+            <li key={r.transaction_id}>
+              <div className="pos-head">
+                <span className="pos-code">{r.longcode}</span>
+                <span className={`pos-status ${up ? 'status-won' : 'status-lost'}`}>
+                  {up ? 'WON' : 'LOST'}
+                </span>
+              </div>
+              <div className="pos-row">
+                <span>Stake {money(r.buy_price)}</span>
+                <span>Returned {money(r.sell_price)}</span>
+                <span className={up ? 'pnl-up' : 'pnl-down'}>
+                  {up ? '+' : ''}
+                  {money(r.profit)}
+                </span>
+              </div>
+              <div className="pos-spot">
+                {new Date(
+                  (r.sell_time ?? r.purchase_time) * 1000
+                ).toLocaleString()}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

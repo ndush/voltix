@@ -28,13 +28,22 @@ export type Purchase = {
   transaction_id: number;
 };
 
+export type SellResult = {
+  contract_id: number;
+  sold_for: number;
+  balance_after: number;
+  transaction_id: number;
+};
+
 export type TradeParams = {
   contract_type: 'CALL' | 'PUT';
   amount: number;
   duration: number;
-  duration_unit: 't' | 's' | 'm' | 'h' | 'd';
+  duration_unit: DurationUnit;
   underlying_symbol: string;
 };
+
+export type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
 
 /**
  * A live contract.
@@ -120,6 +129,39 @@ function toOpenContract(c: Record<string, unknown>): OpenContract {
   };
 }
 
+export type HistoryRow = {
+  contract_id: number | null;
+  transaction_id: number;
+  contract_type: string;
+  underlying_symbol: string;
+  longcode: string;
+  buy_price: number;
+  sell_price: number;
+  payout: number;
+  profit: number;
+  purchase_time: number;
+  sell_time: number | null;
+};
+
+function toHistoryRow(t: Record<string, unknown>): HistoryRow {
+  const buy = num(t.buy_price);
+  const sell = num(t.sell_price);
+  return {
+    contract_id: (t.contract_id as number) ?? null,
+    transaction_id: num(t.transaction_id),
+    contract_type: (t.contract_type as string) ?? '',
+    underlying_symbol: (t.underlying_symbol as string) ?? '',
+    longcode: (t.longcode as string) ?? '',
+    buy_price: buy,
+    sell_price: sell,
+    payout: num(t.payout),
+    // profit_table has no profit field; it is the realised difference.
+    profit: sell - buy,
+    purchase_time: num(t.purchase_time),
+    sell_time: t.sell_time == null ? null : num(t.sell_time),
+  };
+}
+
 type Pending = {
   resolve: (v: Record<string, unknown>) => void;
   reject: (e: Error) => void;
@@ -151,9 +193,17 @@ export function useDerivTrading(account: Account | null) {
     accountId: string | null;
     list: OpenContract[];
   }>({ accountId: null, list: [] });
+  const [histState, setHistState] = useState<{
+    accountId: string | null;
+    rows: HistoryRow[];
+  }>({ accountId: null, rows: [] });
 
   const positions =
     posState.accountId === (account?.account_id ?? null) ? posState.list : [];
+  const history =
+    histState.accountId === (account?.account_id ?? null)
+      ? histState.rows
+      : [];
 
   useEffect(() => {
     if (!account) return;
@@ -209,6 +259,29 @@ export function useDerivTrading(account: Account | null) {
               proposal_open_contract: 1,
               subscribe: 1,
               req_id: id,
+            })
+          );
+
+          // Settled trades are a one-shot read, not a stream.
+          const hid = reqId.current++;
+          subs.set(hid, (d) => {
+            const table = d.profit_table as
+              | { transactions?: Record<string, unknown>[] }
+              | undefined;
+            if (!table?.transactions) return;
+            setHistState({
+              accountId: account.account_id,
+              rows: table.transactions.map(toHistoryRow),
+            });
+            subs.delete(hid);
+          });
+          socket!.send(
+            JSON.stringify({
+              profit_table: 1,
+              description: 1,
+              limit: 50,
+              sort: 'DESC',
+              req_id: hid,
             })
           );
         };
@@ -300,5 +373,48 @@ export function useDerivTrading(account: Account | null) {
     [send]
   );
 
-  return { connected, error, positions, getProposal, buy };
+  // `price` is a floor, not a cap: 0 would accept any price at all. Quoting a
+  // small tolerance below the displayed bid protects against a large adverse
+  // move while still tolerating ordinary tick noise on a fast synthetic index.
+  const sell = useCallback(
+    async (contractId: number, minPrice: number): Promise<SellResult> => {
+      const res = await send({ sell: contractId, price: minPrice });
+      const r = res.sell as Record<string, unknown>;
+      return {
+        contract_id: num(r.contract_id),
+        sold_for: num(r.sold_for),
+        balance_after: num(r.balance_after),
+        transaction_id: num(r.transaction_id),
+      };
+    },
+    [send]
+  );
+
+  const refreshHistory = useCallback(async () => {
+    if (!account) return;
+    const res = await send({
+      profit_table: 1,
+      description: 1,
+      limit: 50,
+      sort: 'DESC',
+    });
+    const table = res.profit_table as
+      | { transactions?: Record<string, unknown>[] }
+      | undefined;
+    setHistState({
+      accountId: account.account_id,
+      rows: (table?.transactions ?? []).map(toHistoryRow),
+    });
+  }, [account, send]);
+
+  return {
+    connected,
+    error,
+    positions,
+    history,
+    getProposal,
+    buy,
+    sell,
+    refreshHistory,
+  };
 }

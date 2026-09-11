@@ -108,6 +108,40 @@ Subscription updates reuse the original `req_id` on every message, so the hook
 tracks streams separately from one-shot requests, which are resolved and
 discarded after their first response.
 
+### Early sell
+
+`{ sell: <contract_id>, price: <minimum> }` closes a position before expiry.
+Note the asymmetry with buying: on a **buy**, `price` is a maximum (a cap); on
+a **sell** it is a **minimum** (a floor), and `0` means "sell at market" —
+accepting any price at all. The UI quotes a floor 5% below the displayed bid,
+which rejects a large adverse move while tolerating ordinary tick noise.
+
+Only offered when Deriv reports `is_valid_to_sell` on the contract.
+
+### History
+
+`{ profit_table: 1, description: 1, limit: 50, sort: 'DESC' }` returns settled
+trades. It has no `profit` field: profit is `sell_price - buy_price`.
+
+### Session expiry
+
+Deriv's OAuth guide documents no refresh token and no `offline_access` scope,
+so a refresh may simply be impossible for this app. The plumbing is built and
+opt-in:
+
+- set `DERIV_REQUEST_OFFLINE_ACCESS=1` to add `offline_access` to the
+  authorize request. Left off by default because an unsupported scope can fail
+  the whole authorize call and break login.
+- `api/auth/callback` stores `deriv_refresh` when one is issued, and logs a
+  warning when it is not.
+- `api/auth/refresh` exchanges it via `grant_type=refresh_token`.
+- the dashboard reads the non-secret `deriv_expires_at` cookie and attempts a
+  refresh a minute before expiry; if that fails it shows a banner rather than
+  dropping the user mid-trade.
+
+To find out whether Deriv issues refresh tokens, set the flag, log in, and
+check the runtime logs for the `no refresh_token issued` warning.
+
 ### Real-money safeguards
 
 - The account selector defaults to a demo account when one exists.
