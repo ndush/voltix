@@ -2,12 +2,14 @@
 
 ## 1. Vercel project
 
+Registrar for the domain is Hostinger; DNS is managed there.
+
 Import the GitHub repo at <https://vercel.com/new>. Framework preset is detected
 as Next.js; leave build settings at their defaults.
 
 ## 2. Custom domain
 
-Add `voltix.com` under **Project → Settings → Domains** and point DNS at Vercel
+Add `voltixtrade.com` under **Project → Settings → Domains** and point DNS at Vercel
 as instructed there. Wait for the certificate to be issued before testing OAuth —
 the redirect URL must be reachable over HTTPS.
 
@@ -24,7 +26,7 @@ Production environment. Do not commit real values.
 | `DERIV_OAUTH_URL` | `https://auth.deriv.com/oauth2/auth` |
 | `DERIV_TOKEN_URL` | `https://auth.deriv.com/oauth2/token` |
 | `DERIV_API_BASE` | `https://api.derivws.com` |
-| `NEXT_PUBLIC_BASE_URL` | `https://voltix.com` |
+| `NEXT_PUBLIC_BASE_URL` | `https://voltixtrade.com` |
 | `SESSION_SECRET` | `openssl rand -base64 32` |
 
 `NEXT_PUBLIC_BASE_URL` is inlined into the client bundle at build time, so
@@ -35,7 +37,7 @@ changing it requires a redeploy, not just a restart.
 The registered redirect URL must exactly match what the app sends:
 
 ```
-https://voltix.com/api/auth/callback
+https://voltixtrade.com/api/auth/callback
 ```
 
 Exact string match — a trailing slash or a different path fails with
@@ -43,7 +45,7 @@ Exact string match — a trailing slash or a different path fails with
 
 ## 5. Verify
 
-1. Load `https://voltix.com` and click **Login with Deriv**.
+1. Load `https://voltixtrade.com` and click **Login with Deriv**.
 2. Confirm the authorization URL carries `affiliate_token` and `utm_campaign`.
    Attribution depends on these; if they are absent the reshare is not credited.
 3. Complete login and confirm the redirect lands on `/dashboard`.
