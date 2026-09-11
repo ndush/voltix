@@ -13,6 +13,14 @@ import {
 
 const SYMBOL = 'R_75';
 
+// Values are coerced at the API boundary, but Deriv has twice returned a
+// string where its spec promised a number. Formatting defensively means a
+// third instance shows a dash instead of taking down the page.
+function money(v: unknown): string {
+  const n = typeof v === 'string' ? parseFloat(v) : (v as number);
+  return Number.isFinite(n) ? n.toFixed(2) : '—';
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -71,7 +79,8 @@ export default function Dashboard() {
     ws.onopen = () => ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
-      if (data.tick?.quote) setTick(data.tick.quote.toFixed(4));
+      const q = Number(data.tick?.quote);
+      if (Number.isFinite(q)) setTick(q.toFixed(4));
     };
     return () => ws.close();
   }, []);
@@ -185,7 +194,7 @@ export default function Dashboard() {
                 {isReal ? 'REAL MONEY' : 'DEMO'}
               </span>
               <span>
-                {account?.balance?.toFixed(2) ?? '—'} {account?.currency ?? ''}
+                {money(account?.balance)} {account?.currency ?? ''}
               </span>
             </>
           )}
@@ -258,8 +267,8 @@ export default function Dashboard() {
             <strong>Contract purchased</strong>
             <p>{purchase.longcode}</p>
             <p>
-              Paid {purchase.buy_price.toFixed(2)} · Payout{' '}
-              {purchase.payout.toFixed(2)} · ID {purchase.contract_id}
+              Paid {money(purchase.buy_price)} · Payout{' '}
+              {money(purchase.payout)} · ID {purchase.contract_id}
             </p>
           </div>
         )}
@@ -319,14 +328,14 @@ function Positions({
                 </div>
                 <div className="pos-row">
                   <span>
-                    Stake {c.buy_price.toFixed(2)} {c.currency}
+                    Stake {money(c.buy_price)} {c.currency}
                   </span>
                   <span>
-                    Payout {c.payout.toFixed(2)} {c.currency}
+                    Payout {money(c.payout)} {c.currency}
                   </span>
                   <span className={up ? 'pnl-up' : 'pnl-down'}>
                     {up ? '+' : ''}
-                    {c.profit.toFixed(2)} {c.currency}
+                    {money(c.profit)} {c.currency}
                     {c.profit_percentage != null &&
                       ` (${up ? '+' : ''}${c.profit_percentage.toFixed(1)}%)`}
                   </span>
@@ -377,19 +386,19 @@ function ConfirmDialog({
           <div>
             <dt>Cost</dt>
             <dd className="cost">
-              {proposal.ask_price.toFixed(2)} {currency}
+              {money(proposal.ask_price)} {currency}
             </dd>
           </div>
           <div>
             <dt>Payout if correct</dt>
             <dd>
-              {proposal.payout.toFixed(2)} {currency}
+              {money(proposal.payout)} {currency}
             </dd>
           </div>
           <div>
             <dt>Loss if wrong</dt>
             <dd className="cost">
-              {proposal.ask_price.toFixed(2)} {currency}
+              {money(proposal.ask_price)} {currency}
             </dd>
           </div>
         </dl>

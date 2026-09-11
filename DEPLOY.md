@@ -88,6 +88,17 @@ Buying requires the `trade` scope, which the OAuth URL already requests.
 every open contract on the account, so positions stay live without polling and
 a newly bought contract appears on its own.
 
+### Deriv stringifies numbers the spec calls numbers
+
+This has bitten twice. `GET /accounts` returns `balance` as `"10000.00"` even
+though the OpenAPI spec declares it a number, and calling `.toFixed()` on it
+takes the dashboard down with a client-side exception.
+
+Treat every monetary field from Deriv as possibly a string. Values are coerced
+at the boundary (`coerce` in `api/auth/me`, `toProposal` / `toPurchase` /
+`toOpenContract` in `useDerivTrading`), and the dashboard formats through a
+`money()` helper that returns a dash rather than throwing.
+
 Deriv sends the monetary fields on this message as **strings**
 (`buy_price`, `bid_price`, `payout`, `profit`, `current_spot`, `sell_price`);
 only `profit_percentage` is a number. They are coerced once in

@@ -73,6 +73,30 @@ const numOrNull = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+// Deriv's OpenAPI spec declares several monetary fields as numbers but returns
+// them as strings. Every value that reaches arithmetic or .toFixed() is coerced
+// at the boundary rather than trusted.
+function toProposal(p: Record<string, unknown>): Proposal {
+  return {
+    id: p.id as string,
+    ask_price: num(p.ask_price),
+    payout: num(p.payout),
+    spot: num(p.spot),
+    longcode: (p.longcode as string) ?? '',
+  };
+}
+
+function toPurchase(b: Record<string, unknown>): Purchase {
+  return {
+    contract_id: num(b.contract_id),
+    buy_price: num(b.buy_price),
+    payout: num(b.payout),
+    balance_after: num(b.balance_after),
+    longcode: (b.longcode as string) ?? '',
+    transaction_id: num(b.transaction_id),
+  };
+}
+
 function toOpenContract(c: Record<string, unknown>): OpenContract {
   return {
     contract_id: c.contract_id as number,
@@ -260,7 +284,7 @@ export function useDerivTrading(account: Account | null) {
         duration: p.duration,
         duration_unit: p.duration_unit,
       });
-      return res.proposal as Proposal;
+      return toProposal(res.proposal as Record<string, unknown>);
     },
     [account, send]
   );
@@ -271,7 +295,7 @@ export function useDerivTrading(account: Account | null) {
   const buy = useCallback(
     async (proposalId: string, maxPrice: number): Promise<Purchase> => {
       const res = await send({ buy: proposalId, price: maxPrice });
-      return res.buy as Purchase;
+      return toPurchase(res.buy as Record<string, unknown>);
     },
     [send]
   );

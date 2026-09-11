@@ -9,18 +9,32 @@ type Account = {
   status?: string;
 };
 
+// Deriv's OpenAPI spec declares `balance` as a number, but the API returns it
+// as a string ("10000.00"). Coerce at the boundary so the rest of the app can
+// treat it as a number, and so a future change back to a real number is a
+// no-op rather than a crash.
+function coerce(a: Record<string, unknown>): Account {
+  const raw = a.balance;
+  const n = typeof raw === 'string' ? parseFloat(raw) : (raw as number);
+  return {
+    ...(a as Account),
+    balance: Number.isFinite(n) ? n : undefined,
+  };
+}
+
 // Deriv has not published the response envelope for this endpoint, and it has
 // changed shape before. Accept a bare array, a { data: [...] } wrapper, or a
 // single object, so a future change degrades to an empty list instead of a
 // crash.
 function toAccounts(payload: unknown): Account[] {
-  if (Array.isArray(payload)) return payload as Account[];
+  if (Array.isArray(payload)) return payload.map(coerce);
   if (payload && typeof payload === 'object') {
     for (const key of ['data', 'accounts', 'result']) {
       const inner = (payload as Record<string, unknown>)[key];
-      if (Array.isArray(inner)) return inner as Account[];
+      if (Array.isArray(inner)) return inner.map(coerce);
     }
-    if ('balance' in (payload as object)) return [payload as Account];
+    if ('balance' in (payload as object))
+      return [coerce(payload as Record<string, unknown>)];
   }
   return [];
 }
