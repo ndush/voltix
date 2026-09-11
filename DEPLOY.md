@@ -169,6 +169,21 @@ check the runtime logs for the `no refresh_token issued` warning.
   unexpected account type gets the confirmation dialog rather than silently
   spending real money.
 
+## Marketing content
+
+All landing-page copy lives in `app/lib/content.ts` and is editable through
+GitHub's web editor without a developer; see `CONTENT.md`. Named campaigns are
+reachable at `/?c=<key>` and carry their own UTM values (and optionally their
+own affiliate token) into the OAuth URL, so signups can be attributed per
+campaign in the Deriv partner dashboard. A named campaign overrides
+`DERIV_AFFILIATE_CAMPAIGN`, which remains the baseline for visitors arriving
+without one.
+
+`DERIV_AFFILIATE_TOKEN` accepts either a bare token or a Deriv URL containing
+one; `resolveAffiliateToken` extracts it. A `partner-tracking.deriv.com/click`
+link carries no token until it redirects, so that form is rejected with a log
+line rather than silently dropping attribution.
+
 ## Compliance
 
 The site carries a risk warning on the landing page and dashboard, discloses

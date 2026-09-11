@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { RiskWarning, SiteFooter } from './components/SiteFooter';
-
-const MARKETS = [
-  { symbol: 'R_75', name: 'Volatility 75' },
-  { symbol: 'R_100', name: 'Volatility 100' },
-  { symbol: 'R_50', name: 'Volatility 50' },
-  { symbol: 'R_25', name: 'Volatility 25' },
-];
+import { BRAND, FEATURES, MARKETS, getCampaign } from './lib/content';
 
 type Quote = { price: number; dir: 'up' | 'down' | null };
 
-export default function Home() {
+function Landing() {
+  const searchParams = useSearchParams();
+  const campaignKey = searchParams.get('c');
+  const campaign = getCampaign(campaignKey);
+
   const [loading, setLoading] = useState(false);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const last = useRef<Record<string, number>>({});
@@ -42,7 +41,10 @@ export default function Home() {
       last.current[sym] = q;
       setQuotes((old) => ({
         ...old,
-        [sym]: { price: q, dir: prev == null ? null : q >= prev ? 'up' : 'down' },
+        [sym]: {
+          price: q,
+          dir: prev == null ? null : q >= prev ? 'up' : 'down',
+        },
       }));
     };
     return () => ws.close();
@@ -51,7 +53,9 @@ export default function Home() {
   async function handleLogin() {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/url');
+      // Carry the campaign through so its UTM values reach Deriv.
+      const qs = campaignKey ? `?c=${encodeURIComponent(campaignKey)}` : '';
+      const res = await fetch(`/api/auth/url${qs}`);
       const { url } = await res.json();
       window.location.href = url;
     } catch {
@@ -61,8 +65,12 @@ export default function Home() {
 
   return (
     <main className="landing">
+      {campaign.banner ? (
+        <div className="promo-banner">{campaign.banner}</div>
+      ) : null}
+
       <header className="nav">
-        <div className="logo">Voltix</div>
+        <div className="logo">{BRAND}</div>
         <nav>
           <a href="#markets">Markets</a>
           <button
@@ -76,10 +84,10 @@ export default function Home() {
       </header>
 
       <section className="hero">
-        <h1>Trade Volatility Indices</h1>
-        <p>Powered by Deriv. Built for speed. Zero custody of your funds.</p>
+        <h1>{campaign.headline}</h1>
+        <p>{campaign.subhead}</p>
         <button className="btn-primary big" onClick={handleLogin}>
-          Start Trading →
+          {campaign.cta}
         </button>
         <p className="fineprint">
           New accounts are linked to our partner program during signup.
@@ -105,11 +113,29 @@ export default function Home() {
         })}
       </section>
 
+      <section className="features">
+        {FEATURES.map((f) => (
+          <div key={f.title} className="feature">
+            <h3>{f.title}</h3>
+            <p>{f.body}</p>
+          </div>
+        ))}
+      </section>
+
       <section className="risk-section">
         <RiskWarning />
       </section>
 
       <SiteFooter />
     </main>
+  );
+}
+
+export default function Home() {
+  // useSearchParams needs a Suspense boundary so the shell can prerender.
+  return (
+    <Suspense fallback={<main className="landing" />}>
+      <Landing />
+    </Suspense>
   );
 }

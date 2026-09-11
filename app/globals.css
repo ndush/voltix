@@ -687,3 +687,45 @@ a.logo {
   font-size: 11px;
   color: #4b5563;
 }
+
+.promo-banner {
+  background: #ff444f;
+  color: #fff;
+  text-align: center;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 40px 40px;
+}
+
+.feature h3 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.feature p {
+  color: #b0b6c0;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .markets,
+  .features {
+    padding: 20px;
+  }
+  .hero {
+    padding: 60px 20px;
+  }
+  .hero h1 {
+    font-size: 32px;
+  }
+}

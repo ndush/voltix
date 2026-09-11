@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import crypto from 'crypto';
+import { affiliateTokenOrThrow, resolveAffiliateToken } from '@/app/lib/affiliate';
+import { CAMPAIGNS, getCampaign } from '@/app/lib/content';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   // Generate PKCE code_verifier and code_challenge
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
   const codeChallenge = crypto
@@ -11,6 +13,15 @@ export async function GET() {
 
   // Generate state for CSRF protection
   const state = crypto.randomBytes(16).toString('hex');
+
+  // Marketing campaign selected by ?c= on the landing page. Its UTM values
+  // flow through to Deriv so signups can be told apart in the partner
+  // dashboard, and it may carry its own affiliate token.
+  const campaignKey = req.nextUrl.searchParams.get('c');
+  const campaign = getCampaign(campaignKey);
+  const isNamedCampaign = !!campaignKey && campaignKey in CAMPAIGNS;
+  const affiliateToken =
+    resolveAffiliateToken(campaign.affiliateToken) ?? affiliateTokenOrThrow();
 
   // Build OAuth URL with affiliate token (reshare attribution)
   const params = new URLSearchParams({
@@ -27,12 +38,22 @@ export async function GET() {
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    // ---- RESHARE / AFFILIATE ATTRIBUTION ----
-    affiliate_token: process.env.DERIV_AFFILIATE_TOKEN!,
-    utm_campaign: process.env.DERIV_AFFILIATE_CAMPAIGN!,
-    utm_source: 'reshare_site',
-    // -----------------------------------------
   });
+
+  // ---- RESHARE / AFFILIATE ATTRIBUTION ----
+  // Deriv accepts the tracking token under four interchangeable names and
+  // asks that exactly one be sent, so only affiliate_token is used.
+  if (affiliateToken) params.set('affiliate_token', affiliateToken);
+  // A named campaign always wins; DERIV_AFFILIATE_CAMPAIGN is only the
+  // baseline for visitors arriving without one.
+  params.set(
+    'utm_campaign',
+    isNamedCampaign
+      ? campaign.utmCampaign
+      : process.env.DERIV_AFFILIATE_CAMPAIGN || campaign.utmCampaign
+  );
+  params.set('utm_source', campaign.utmSource);
+  // -----------------------------------------
 
   const url = `${process.env.DERIV_OAUTH_URL}?${params.toString()}`;
 
