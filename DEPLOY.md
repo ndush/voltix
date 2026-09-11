@@ -63,3 +63,21 @@ Exact string match — a trailing slash or a different path fails with
 - There is no refresh-token handling. When the access token expires the user is
   bounced to `/` by `proxy.ts` and must log in again.
 - The Buy/Sell buttons on the dashboard are not wired to any trade endpoint.
+
+## Commit authorship
+
+Vercel's Hobby plan only deploys commits whose author has contributing access to
+the project, and it does not allow additional contributors on a private repo. A
+commit authored by any other identity is rejected with "Deployment Blocked",
+even though the push itself succeeds.
+
+Commits must therefore be authored as the GitHub account the Vercel project was
+imported from:
+
+```
+git config user.name  "Damaris Muange"
+git config user.email "13904670+ndush@users.noreply.github.com"
+```
+
+The noreply address attributes the commit to the account without exposing a
+private email. Check with `git log -1 --format='%an <%ae>'` before pushing.
