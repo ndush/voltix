@@ -1,26 +1,137 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0b0e14;
+  color: #e6e8eb;
+}
+
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  border-bottom: 1px solid #1c2230;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 20px;
+  color: #ff444f;
+}
+
+.nav a {
+  color: #b0b6c0;
+  margin: 0 16px;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: #ff444f;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-primary.big {
+  padding: 14px 28px;
+  font-size: 16px;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.hero {
+  text-align: center;
+  padding: 100px 20px;
+}
+
+.hero h1 {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.hero p {
+  color: #b0b6c0;
+  margin-bottom: 32px;
+}
+
+.fineprint {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 16px;
+}
+
+.markets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  padding: 40px;
+}
+
+.card {
+  background: #131824;
+  border: 1px solid #1c2230;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+}
+
+.dashboard {
+  min-height: 100vh;
+}
+
+.account {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.trade-panel {
+  max-width: 500px;
+  margin: 60px auto;
+  background: #131824;
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+}
+
+.price {
+  font-size: 48px;
+  font-weight: 700;
+  margin: 24px 0;
+  color: #4ade80;
+}
+
+.actions {
+  display: flex;
+  gap: 16px;
+}
+
+.buy,
+.sell {
+  flex: 1;
+  padding: 16px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  color: white;
+}
+
+.buy {
+  background: #16a34a;
+}
+
+.sell {
+  background: #dc2626;
 }
