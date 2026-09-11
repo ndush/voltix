@@ -151,9 +151,13 @@ opt-in:
 - `api/auth/callback` stores `deriv_refresh` when one is issued, and logs a
   warning when it is not.
 - `api/auth/refresh` exchanges it via `grant_type=refresh_token`.
-- the dashboard reads the non-secret `deriv_expires_at` cookie and attempts a
-  refresh a minute before expiry; if that fails it shows a banner rather than
-  dropping the user mid-trade.
+- `api/auth/callback` also sets a non-secret `deriv_can_refresh` flag. The
+  dashboard only attempts a silent refresh when that flag is `1`; without it
+  there is nothing to refresh with and polling could only ever fail.
+- There is deliberately **no** "session about to expire" warning. Deriv issues
+  no refresh token for this app, so such a warning would fire on every session
+  and offer nothing actionable. The banner appears only once a request has
+  actually been rejected as unauthenticated.
 
 To find out whether Deriv issues refresh tokens, set the flag, log in, and
 check the runtime logs for the `no refresh_token issued` warning.

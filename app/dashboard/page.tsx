@@ -51,10 +51,10 @@ export default function Dashboard() {
   const [duration, setDuration] = useState('5');
   const [durationUnit, setDurationUnit] = useState<DurationUnit>('t');
   const [sellingId, setSellingId] = useState<number | null>(null);
-  // 'unavailable' = Deriv never issued a refresh token, so renewal was never
-  // possible; 'failed' = a refresh was attempted and rejected. Different
-  // situations, and saying "could not be renewed" for the first is misleading.
-  const [expiry, setExpiry] = useState<'ok' | 'unavailable' | 'failed'>('ok');
+  // Only set once the session has actually ended. There is deliberately no
+  // "about to expire" warning: Deriv issues no refresh token for this app, so
+  // such a warning would fire on every session and offer nothing actionable.
+  const [sessionEnded, setSessionEnded] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [confirming, setConfirming] = useState<TradeParams | null>(null);
   // Tagged with the account it happened on. A receipt from a demo trade must
@@ -83,6 +83,9 @@ export default function Dashboard() {
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
       .then(({ ok, body }) => {
         if (!ok) {
+          if (body.error === 'not_authenticated' || body.status === 401) {
+            setSessionEnded(true);
+          }
           setAccountError(
             body.status ? `${body.error} (${body.status})` : body.error
           );
@@ -105,37 +108,31 @@ export default function Dashboard() {
       });
   }, []);
 
-  // Deriv's access token lasts an hour and its OAuth guide documents no
-  // refresh token, so a refresh may legitimately be impossible. Try it shortly
-  // before expiry; if the server has nothing to refresh with, warn instead of
-  // dumping the user out mid-trade.
+  // Renew silently, and only when Deriv actually issued a refresh token.
+  // If it did not, there is nothing to attempt and nothing worth saying until
+  // a request genuinely fails.
   useEffect(() => {
-    const read = () =>
+    const cookie = (name: string) =>
       document.cookie
         .split('; ')
-        .find((c) => c.startsWith('deriv_expires_at='))
+        .find((c) => c.startsWith(`${name}=`))
         ?.split('=')[1];
 
-    let timer: ReturnType<typeof setTimeout>;
+    if (cookie('deriv_can_refresh') !== '1') return;
 
+    let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
-      const raw = read();
-      const at = raw ? Number(raw) : NaN;
+      const at = Number(cookie('deriv_expires_at'));
       if (!Number.isFinite(at)) return;
-      // One minute of headroom, and never less than five seconds out.
       const delay = Math.max(5000, at - Date.now() - 60000);
       timer = setTimeout(async () => {
         try {
           const res = await fetch('/api/auth/refresh', { method: 'POST' });
-          if (res.ok) {
-            setExpiry('ok');
-            schedule();
-            return;
-          }
-          const body = await res.json().catch(() => ({}));
-          setExpiry(body.error === 'no_refresh_token' ? 'unavailable' : 'failed');
+          if (res.ok) schedule();
+          else setSessionEnded(true);
         } catch {
-          setExpiry('failed');
+          // A network blip is not an ended session; try again shortly.
+          timer = setTimeout(schedule, 15000);
         }
       }, delay);
     };
@@ -156,6 +153,10 @@ export default function Dashboard() {
     };
     return () => ws.close();
   }, []);
+
+  // The socket URL endpoint rejects an expired token too; treat that as the
+  // same condition rather than tracking it separately.
+  const expired = sessionEnded || wsError === 'not_authenticated';
 
   // Fail safe, not open: anything that is not explicitly a demo account is
   // treated as real. If Deriv ever returns an unexpected account_type, the
@@ -328,12 +329,11 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {expiry !== 'ok' && (
+      {expired && (
         <div className="expiry-banner">
-          {expiry === 'unavailable'
-            ? 'Your Deriv session expires shortly. Deriv does not issue renewable sessions for this app, so you will need to sign in again to keep trading.'
-            : 'Your Deriv session is about to expire and could not be renewed.'}{' '}
-          <button onClick={() => router.replace('/')}>Log in again</button>
+          Your Deriv session has ended. Sign in again to keep trading — any open
+          contracts are unaffected.{' '}
+          <button onClick={() => router.replace('/')}>Sign in again</button>
         </div>
       )}
 

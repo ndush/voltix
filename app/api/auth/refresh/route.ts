@@ -74,6 +74,13 @@ export async function POST() {
     String(Date.now() + expiresIn * 1000),
     { httpOnly: false, secure, sameSite: 'lax', maxAge: expiresIn, path: '/' }
   );
+  response.cookies.set('deriv_can_refresh', '1', {
+    httpOnly: false,
+    secure,
+    sameSite: 'lax',
+    maxAge: expiresIn,
+    path: '/',
+  });
   // Deriv may rotate the refresh token; store the new one when it does.
   if (data.refresh_token) {
     response.cookies.set('deriv_refresh', data.refresh_token, {

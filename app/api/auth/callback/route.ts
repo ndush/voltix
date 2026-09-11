@@ -75,8 +75,20 @@ export async function GET(req: NextRequest) {
       maxAge: 60 * 60 * 24 * 30,
       path: '/',
     });
-  } else {
-    console.warn('[auth/callback] no refresh_token issued; session ends at expiry');
+  }
+  // Non-secret flag so the page knows whether a silent refresh is worth
+  // attempting. Without it the page would poll an endpoint that can only fail.
+  response.cookies.set('deriv_can_refresh', data.refresh_token ? '1' : '0', {
+    httpOnly: false,
+    secure,
+    sameSite: 'lax',
+    maxAge: expiresIn,
+    path: '/',
+  });
+  if (!data.refresh_token) {
+    console.warn(
+      '[auth/callback] no refresh_token issued; session ends at expiry'
+    );
   }
 
   // Clean up temporary cookies
