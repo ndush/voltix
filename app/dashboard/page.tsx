@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { RiskWarning } from '../components/SiteFooter';
 import {
   useDerivTrading,
   type Account,
@@ -147,7 +148,10 @@ export default function Dashboard() {
     return () => ws.close();
   }, []);
 
-  const isReal = account?.account_type === 'real';
+  // Fail safe, not open: anything that is not explicitly a demo account is
+  // treated as real. If Deriv ever returns an unexpected account_type, the
+  // user gets the confirmation dialog rather than silently spending real money.
+  const isReal = account ? account.account_type !== 'demo' : false;
   // Derived rather than synced through an effect: if Deriv does not offer the
   // selected unit, fall back to one it does without an extra render pass.
   const effectiveUnit: DurationUnit =
@@ -438,6 +442,10 @@ export default function Dashboard() {
 
       <TradeHistory rows={history} />
 
+      <section className="dash-risk">
+        <RiskWarning compact />
+      </section>
+
       {confirming && proposal && (
         <ConfirmDialog
           proposal={proposal}
@@ -514,6 +522,12 @@ function Positions({
                     {c.current_spot.toFixed(4)}
                     {c.tick_count ? ` · ${c.tick_count} ticks` : ''}
                   </div>
+                )}
+                {!settled && !c.is_valid_to_sell && (
+                  <p className="no-sell">
+                    Not available to sell yet — very short contracts often
+                    cannot be closed early.
+                  </p>
                 )}
                 {!settled && c.is_valid_to_sell && (
                   <button

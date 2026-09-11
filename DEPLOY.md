@@ -165,6 +165,19 @@ check the runtime logs for the `no refresh_token issued` warning.
   selected.
 - Real-money trades require confirmation in a dialog stating cost, payout, and
   worst-case loss. Demo trades skip it.
+- The check is `account_type !== 'demo'`, not `=== 'real'`. It fails safe: an
+  unexpected account type gets the confirmation dialog rather than silently
+  spending real money.
+
+## Compliance
+
+The site carries a risk warning on the landing page and dashboard, discloses
+the Deriv affiliate relationship, and links Terms of Use and a Privacy Policy.
+
+**The legal pages are templates and have not been reviewed by a lawyer.** They
+must be checked by qualified counsel before real traffic, particularly for UK,
+EU, or other regions with statutory disclosure and privacy obligations.
+Financial promotions are separately regulated in many jurisdictions.
 
 ## Commit authorship
 

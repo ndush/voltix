@@ -189,9 +189,11 @@ function parseDuration(v: unknown): { n: number; u: DurationUnit } | null {
 /**
  * Turns `contracts_for` entries into per-unit duration bounds.
  *
- * Deriv reports a single range per contract entry, and a time range such as
- * 15s-1d spans several units, so the time bounds are normalised to seconds and
- * re-expressed in each unit. Ticks are kept separate because they are not time.
+ * Deriv splits offerings by `expiry_type`, and merging them produces nonsense:
+ * intraday contracts top out around a day while daily ones run to a year, so a
+ * naive merge advertised "15-31536000 seconds". Intraday entries therefore
+ * govern seconds/minutes/hours, daily entries govern days, and ticks are kept
+ * separate because they are not time at all.
  */
 function toLimits(
   available: Record<string, unknown>[],
@@ -199,8 +201,10 @@ function toLimits(
 ): ContractLimits {
   let tickMin = Infinity;
   let tickMax = 0;
-  let minSec = Infinity;
-  let maxSec = 0;
+  let intraMinSec = Infinity;
+  let intraMaxSec = 0;
+  let dayMin = Infinity;
+  let dayMax = 0;
   let minStake: number | null = null;
   let maxStake: number | null = null;
 
@@ -209,12 +213,22 @@ function toLimits(
 
     const lo = parseDuration(a.min_contract_duration);
     const hi = parseDuration(a.max_contract_duration);
-    if (lo && hi && lo.u === 't' && hi.u === 't') {
-      tickMin = Math.min(tickMin, lo.n);
-      tickMax = Math.max(tickMax, hi.n);
-    } else if (lo && hi && lo.u !== 't' && hi.u !== 't') {
-      minSec = Math.min(minSec, lo.n * UNIT_SECONDS[lo.u]);
-      maxSec = Math.max(maxSec, hi.n * UNIT_SECONDS[hi.u]);
+
+    if (lo && hi) {
+      if (lo.u === 't' && hi.u === 't') {
+        tickMin = Math.min(tickMin, lo.n);
+        tickMax = Math.max(tickMax, hi.n);
+      } else if (lo.u !== 't' && hi.u !== 't') {
+        const loSec = lo.n * UNIT_SECONDS[lo.u];
+        const hiSec = hi.n * UNIT_SECONDS[hi.u];
+        if (hi.u === 'd' && hi.n > 1) {
+          dayMin = Math.min(dayMin, Math.max(1, Math.ceil(loSec / 86400)));
+          dayMax = Math.max(dayMax, hi.n);
+        } else {
+          intraMinSec = Math.min(intraMinSec, loSec);
+          intraMaxSec = Math.max(intraMaxSec, hiSec);
+        }
+      }
     }
 
     const ms = a.min_stake as number | null;
@@ -224,17 +238,21 @@ function toLimits(
   }
 
   const durations: Partial<Record<DurationUnit, UnitRange>> = {};
+
   if (tickMax > 0 && Number.isFinite(tickMin))
     durations.t = { min: tickMin, max: tickMax };
-  if (maxSec > 0 && Number.isFinite(minSec)) {
-    for (const u of ['s', 'm', 'h', 'd'] as const) {
+
+  if (intraMaxSec > 0 && Number.isFinite(intraMinSec)) {
+    for (const u of ['s', 'm', 'h'] as const) {
       const step = UNIT_SECONDS[u];
-      const min = Math.max(1, Math.ceil(minSec / step));
-      const max = Math.floor(maxSec / step);
-      // Only offer a unit that can actually express a valid duration.
-      if (max >= min && min * step >= minSec) durations[u] = { min, max };
+      const min = Math.max(1, Math.ceil(intraMinSec / step));
+      const max = Math.floor(intraMaxSec / step);
+      if (max >= min && min * step >= intraMinSec) durations[u] = { min, max };
     }
   }
+
+  if (dayMax > 0 && Number.isFinite(dayMin))
+    durations.d = { min: dayMin, max: dayMax };
 
   return { durations, minStake, maxStake };
 }
@@ -291,6 +309,38 @@ export function useDerivTrading(account: Account | null, symbol: string) {
     const inflight = pending.current;
     const subs = streams.current;
 
+    // Settlement and the profit_table write are not atomic on Deriv's side, so
+    // a refresh fired immediately can miss the row. Debounce and delay a beat.
+    let histTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleHistoryRefresh = () => {
+      clearTimeout(histTimer);
+      histTimer = setTimeout(() => {
+        if (cancelled || socket?.readyState !== WebSocket.OPEN) return;
+        const rid = reqId.current++;
+        subs.set(rid, (d) => {
+          const table = d.profit_table as
+            | { transactions?: Record<string, unknown>[] }
+            | undefined;
+          if (table?.transactions) {
+            setHistState({
+              accountId: account.account_id,
+              rows: table.transactions.map(toHistoryRow),
+            });
+          }
+          subs.delete(rid);
+        });
+        socket.send(
+          JSON.stringify({
+            profit_table: 1,
+            description: 1,
+            limit: 50,
+            sort: 'DESC',
+            req_id: rid,
+          })
+        );
+      }, 1500);
+    };
+
     (async () => {
       setError(null);
       setConnected(false);
@@ -319,18 +369,24 @@ export function useDerivTrading(account: Account | null, symbol: string) {
               | undefined;
             if (!c?.contract_id) return;
             const next = toOpenContract(c);
+            const done = next.is_sold || next.is_expired;
+
             setPosState((prev) => {
               const list =
                 prev.accountId === account.account_id ? prev.list : [];
-              const i = list.findIndex(
-                (p) => p.contract_id === next.contract_id
+              // A settled contract belongs in history, not positions. Leaving
+              // it here made "Positions" accumulate every trade of the session.
+              const without = list.filter(
+                (p) => p.contract_id !== next.contract_id
               );
-              const updated =
-                i === -1
-                  ? [next, ...list]
-                  : list.map((p, n) => (n === i ? next : p));
-              return { accountId: account.account_id, list: updated };
+              return {
+                accountId: account.account_id,
+                list: done ? without : [next, ...without],
+              };
             });
+
+            // Pull the realised row once Deriv has settled it.
+            if (done) scheduleHistoryRefresh();
           });
           socket!.send(
             JSON.stringify({
@@ -416,6 +472,7 @@ export function useDerivTrading(account: Account | null, symbol: string) {
 
     return () => {
       cancelled = true;
+      clearTimeout(histTimer);
       inflight.forEach((p) => p.reject(new Error('disconnected')));
       inflight.clear();
       subs.clear();
