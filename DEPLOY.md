@@ -62,7 +62,33 @@ Exact string match — a trailing slash or a different path fails with
   real session if you move off the raw token.
 - There is no refresh-token handling. When the access token expires the user is
   bounced to `/` by `proxy.ts` and must log in again.
-- The Buy/Sell buttons on the dashboard are not wired to any trade endpoint.
+- No refresh-token handling (see above); an expired token means a fresh login.
+
+## Trading
+
+Trading runs over Deriv's authenticated WebSocket, not REST. The flow is:
+
+1. `GET /trading/v1/options/accounts` lists accounts (`account_type` is
+   `demo` or `real`).
+2. `POST /trading/v1/options/accounts/{id}/otp` returns a ready-to-use socket
+   URL. The OTP is single-use and expires after 120 seconds, so a URL is
+   minted per connection and never reused. This happens in
+   `app/api/deriv/ws-url`, which keeps the Deriv access token server-side.
+3. `{ proposal: 1, ... }` over that socket quotes a contract. Note the field
+   is `underlying_symbol`, not `symbol`.
+4. `{ buy: <proposal id>, price: <ask_price> }` executes it. Passing the quoted
+   ask price as `price` caps the spend: if the market moves between quote and
+   execution, Deriv rejects the trade rather than filling at a worse price.
+
+Buying requires the `trade` scope, which the OAuth URL already requests.
+
+### Real-money safeguards
+
+- The account selector defaults to a demo account when one exists.
+- A `REAL MONEY` badge and a persistent banner show whenever a real account is
+  selected.
+- Real-money trades require confirmation in a dialog stating cost, payout, and
+  worst-case loss. Demo trades skip it.
 
 ## Commit authorship
 
