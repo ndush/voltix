@@ -8,6 +8,9 @@ type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
 export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [editor, setEditor] = useState<string | null>(null);
+  const [form, setForm] = useState({ email: '', password: '', code: '' });
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
   const [content, setContent] = useState<SiteContent | null>(null);
   const [sha, setSha] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -101,14 +104,78 @@ export default function Admin() {
   }
 
   if (!authed) {
-    // proxy.ts enforces Basic Auth before this page loads, so reaching an
-    // unauthenticated state here means the credentials were revoked mid-visit.
     return (
-      <main className="admin">
-        <p className="admin-error">
-          Your access was removed. Close the browser and open this page again
-          to sign in with different credentials.
-        </p>
+      <main className="admin admin-login">
+        <form
+          className="login-card"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setSigningIn(true);
+            setLoginError(null);
+            try {
+              const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form),
+              });
+              const body = await res.json().catch(() => ({}));
+              if (res.ok) {
+                setForm({ email: '', password: '', code: '' });
+                apply(await fetchContent());
+              } else if (res.status === 429) {
+                setLoginError(
+                  `Too many attempts. Try again in about ${Math.ceil(
+                    (body.retryAfter ?? 900) / 60
+                  )} minutes.`
+                );
+              } else if (body.error === 'not_configured') {
+                setLoginError('Admin is not set up yet. ADMIN_USERS is missing.');
+              } else {
+                setLoginError('Email, password or code is not correct.');
+              }
+            } catch {
+              setLoginError('Could not reach the server. Try again.');
+            } finally {
+              setSigningIn(false);
+            }
+          }}
+        >
+          <h1>Voltix admin</h1>
+          <p className="admin-muted">
+            Sign in with your password and the 6-digit code from your
+            authenticator app.
+          </p>
+          <input
+            type="email"
+            autoComplete="username"
+            placeholder="Email"
+            value={form.email}
+            autoFocus
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
+            placeholder="Password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="6-digit code"
+            maxLength={6}
+            value={form.code}
+            onChange={(e) =>
+              setForm({ ...form, code: e.target.value.replace(/\D/g, '') })
+            }
+          />
+          {loginError && <p className="admin-error">{loginError}</p>}
+          <button type="submit" className="btn-primary" disabled={signingIn}>
+            {signingIn ? 'Checking…' : 'Sign in'}
+          </button>
+        </form>
       </main>
     );
   }
@@ -150,6 +217,16 @@ export default function Admin() {
           <a href="/" target="_blank" rel="noreferrer">
             View site ↗
           </a>
+          <button
+            onClick={async () => {
+              await fetch('/api/admin/logout', { method: 'POST' });
+              setAuthed(false);
+              setContent(null);
+              setEditor(null);
+            }}
+          >
+            Sign out
+          </button>
           <button
             className="btn-primary"
             onClick={save}

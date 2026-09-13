@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { headers } from 'next/headers';
-import { authenticate } from '@/app/lib/basicAuth';
+import { readSession, SESSION_COOKIE } from '@/app/lib/adminAuth';
+import { cookies } from 'next/headers';
 import type { SiteContent } from '@/app/lib/content';
 
 const CONTENT_PATH = 'content/site.json';
@@ -24,13 +24,13 @@ function gh(token: string) {
 /**
  * The editor's email.
  *
- * `proxy.ts` already authenticated the request, but the credentials are
- * re-checked here rather than trusting the header it forwards: if the matcher
- * were ever changed and this route stopped being covered, an attacker could
- * otherwise assert an identity simply by setting x-admin-email.
+ * `proxy.ts` already checked the session, but it is verified again here rather
+ * than trusting the x-admin-email header it forwards: if the matcher were ever
+ * changed and this route stopped being covered, an attacker could otherwise
+ * assert an identity simply by setting that header.
  */
 async function currentEditor(): Promise<string | null> {
-  return authenticate((await headers()).get('authorization'));
+  return readSession((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
 /**
