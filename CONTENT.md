@@ -4,8 +4,12 @@ You do not need GitHub, and you cannot break the site from here.
 
 ## Signing in
 
-Go to **/admin** and press **Sign in with Google**. Use the Google account the
-site owner added as an editor. There is no password to remember.
+Go to **/admin**. The browser asks for a username and password: your email
+address, and the password the site owner gave you. Tick "remember" if your
+browser offers it.
+
+To sign out, close the browser. Browsers keep these credentials for the rest of
+the session and there is no sign-out button.
 
 ## What you can change
 
@@ -54,10 +58,7 @@ keys with a pattern, since both reach other systems.
 
 | Variable | Purpose |
 | --- | --- |
-| `ADMIN_EMAILS` | Comma-separated Google addresses that may sign in, e.g. `you@gmail.com,client@gmail.com` |
-| `SESSION_SECRET` | Signs the admin session cookie. Already set. |
-| `GOOGLE_CLIENT_ID` | From a Google Cloud OAuth client |
-| `GOOGLE_CLIENT_SECRET` | Same |
+| `ADMIN_USERS` | `email:password` pairs, comma separated. See below. |
 | `GITHUB_REPO` | `ndush/voltix` |
 | `GITHUB_TOKEN` | Fine-grained PAT, **Contents: Read and write**, scoped to this repository only |
 | `GITHUB_BRANCH` | Optional, defaults to `main` |
@@ -67,29 +68,34 @@ tokens → Fine-grained tokens**. Give it access to `ndush/voltix` alone and the
 single **Contents** permission. It can commit to this repository, so treat it
 as a credential: it belongs in Vercel's environment variables and nowhere else.
 
-## Google sign-in setup
+## Admin access
 
-1. <https://console.cloud.google.com/> → create or pick a project.
-2. **APIs & Services → OAuth consent screen**. External, fill in the app name
-   and your support email. Adding editors as test users is enough; the app does
-   not need verification while it stays in testing.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID**,
-   type **Web application**.
-4. Authorised redirect URI, exactly:
-   `https://voltix-khaki.vercel.app/api/admin/google/callback`
-   For local work add `http://localhost:3000/api/admin/google/callback` too.
-5. Copy the client ID and secret into Vercel.
+`proxy.ts` enforces HTTP Basic Auth over `/admin` and `/api/admin/*`. There is
+no login page, no session cookie and no provider: the browser's own dialog
+collects the credentials and resends them on each request.
 
-## Access and sessions
+Set `ADMIN_USERS` to `email:password` pairs:
 
-Google proves who the visitor is; `ADMIN_EMAILS` decides whether they may edit.
-Signing in with an account that is not on the list is harmless — it is refused
-and told so. Removing an address revokes access on the next request, since the
-allowlist is rechecked every time rather than baked into the cookie.
+```
+ADMIN_USERS=you@gmail.com:LONG_RANDOM_ONE,client@gmail.com:LONG_RANDOM_TWO
+```
 
-The session is an HMAC-signed cookie valid 8 hours carrying the editor's
-address, so each save is committed with that person as the git author. To end
-every live session at once, rotate `SESSION_SECRET`.
+Generate each with `openssl rand -base64 24`. A password may contain colons but
+not commas, since commas separate users.
 
-The OAuth flow uses PKCE and a state cookie, and an account whose email Google
-reports as unverified is rejected.
+Using the email as the username keeps per-person identity: saves are committed
+with that address as the git author, so the history says who changed what.
+Removing someone's pair revokes them on their next request.
+
+Basic Auth sends the password with every request, so it is only acceptable over
+HTTPS. Vercel terminates TLS on all deployments, and the proxy additionally
+refuses non-HTTPS requests in production.
+
+Passwords are compared in constant time, and every configured user is checked
+even after a match so the timing does not reveal which entry matched.
+`/api/admin/content` re-verifies the credentials itself rather than trusting
+the identity header the proxy forwards.
+
+**Trade-off accepted:** there is no sign-out. Browsers cache Basic Auth
+credentials until the session ends, so revoking access means changing that
+user's password in `ADMIN_USERS`.

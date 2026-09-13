@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import { SESSION_COOKIE, readSession } from '@/app/lib/adminAuth';
+import { headers } from 'next/headers';
+import { authenticate } from '@/app/lib/basicAuth';
 import type { SiteContent } from '@/app/lib/content';
 
 const CONTENT_PATH = 'content/site.json';
@@ -21,10 +21,16 @@ function gh(token: string) {
   };
 }
 
-/** Returns the signed-in editor's email, or null. */
+/**
+ * The editor's email.
+ *
+ * `proxy.ts` already authenticated the request, but the credentials are
+ * re-checked here rather than trusting the header it forwards: if the matcher
+ * were ever changed and this route stopped being covered, an attacker could
+ * otherwise assert an identity simply by setting x-admin-email.
+ */
 async function currentEditor(): Promise<string | null> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  return readSession(token);
+  return authenticate((await headers()).get('authorization'));
 }
 
 /**
