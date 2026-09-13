@@ -4,12 +4,26 @@ You do not need GitHub, and you cannot break the site from here.
 
 ## Signing in
 
-Go to **/admin**. The browser asks for a username and password: your email
-address, and the password the site owner gave you. Tick "remember" if your
-browser offers it.
+Go to **/admin** and enter three things:
 
-To sign out, close the browser. Browsers keep these credentials for the rest of
-the session and there is no sign-out button.
+1. your email
+2. your password
+3. the 6-digit code from your authenticator app
+
+The code changes every 30 seconds, so type it fresh. Press **Sign out** when
+you are finished — especially on a shared computer. You stay signed in for one
+hour, then sign in again.
+
+### First time: setting up the code on your phone
+
+The site owner will show you a QR code once. Scan it with any authenticator app
+already on your phone — Google Authenticator, Authy, Microsoft Authenticator,
+or the built-in password app on iPhone. That is the whole setup and it takes
+about ten seconds.
+
+After that the app shows a rotating 6-digit code. It works offline; the phone
+needs no signal to generate it.
+
 
 ## What you can change
 
@@ -58,7 +72,7 @@ keys with a pattern, since both reach other systems.
 
 | Variable | Purpose |
 | --- | --- |
-| `ADMIN_USERS` | `email:password` pairs, comma separated. See below. |
+| `ADMIN_USERS` | JSON array of editors. Generate with `npm run admin:user`. |
 | `GITHUB_REPO` | `ndush/voltix` |
 | `GITHUB_TOKEN` | Fine-grained PAT, **Contents: Read and write**, scoped to this repository only |
 | `GITHUB_BRANCH` | Optional, defaults to `main` |
@@ -70,32 +84,42 @@ as a credential: it belongs in Vercel's environment variables and nowhere else.
 
 ## Admin access
 
-`proxy.ts` enforces HTTP Basic Auth over `/admin` and `/api/admin/*`. There is
-no login page, no session cookie and no provider: the browser's own dialog
-collects the credentials and resends them on each request.
+`proxy.ts` guards `/admin` and `/api/admin/*` with a signed session cookie.
+Signing in needs a password **and** a TOTP code, so a leaked password alone is
+not enough.
 
-Set `ADMIN_USERS` to `email:password` pairs:
+### Adding an editor
 
+```bash
+npm run admin:user
 ```
-ADMIN_USERS=you@gmail.com:LONG_RANDOM_ONE,client@gmail.com:LONG_RANDOM_TWO
-```
 
-Generate each with `openssl rand -base64 24`. A password may contain colons but
-not commas, since commas separate users.
+It asks for an email and password (or generates a strong one), then prints an
+enrolment QR code in the terminal and the JSON entry for `ADMIN_USERS`. The
+password and the TOTP secret are shown once and stored nowhere — only the
+scrypt hash reaches the environment, so the variable itself is not a usable
+credential. For several editors, put every entry in the same JSON array.
 
-Using the email as the username keeps per-person identity: saves are committed
-with that address as the git author, so the history says who changed what.
-Removing someone's pair revokes them on their next request.
+### How it is put together
 
-Basic Auth sends the password with every request, so it is only acceptable over
-HTTPS. Vercel terminates TLS on all deployments, and the proxy additionally
-refuses non-HTTPS requests in production.
+- **Passwords**: scrypt, with salt and hash as separate hex fields. The usual
+  `$`-delimited form is silently mangled by dotenv-style variable expansion,
+  which reads `$9ebf...` as a variable name and substitutes nothing.
+- **TOTP**: standard 6-digit, 30-second codes, accepted one window either side
+  to tolerate clock drift. Any authenticator app works; no provider account.
+- **Session**: HMAC-signed cookie, `httpOnly`, `Secure`, `SameSite=Strict`,
+  one hour. Membership is rechecked on every request, so removing someone from
+  `ADMIN_USERS` cuts them off immediately rather than when their cookie lapses.
+- **Unknown addresses** are verified against a decoy hash, so a wrong email and
+  a wrong password cost the same time and cannot be told apart.
+- **Logins are logged**, success and failure, with the source address. Saves
+  are already attributed to a person in git.
+- `/api/admin/content` re-checks the session itself rather than trusting the
+  `x-admin-email` header the proxy forwards.
 
-Passwords are compared in constant time, and every configured user is checked
-even after a match so the timing does not reveal which entry matched.
-`/api/admin/content` re-verifies the credentials itself rather than trusting
-the identity header the proxy forwards.
+### Known limitation
 
-**Trade-off accepted:** there is no sign-out. Browsers cache Basic Auth
-credentials until the session ends, so revoking access means changing that
-user's password in `ADMIN_USERS`.
+Rate limiting (5 attempts, then a 15-minute lockout) is held **in memory**, so
+on serverless it is per-instance: an attacker spreading attempts across cold
+starts sees a weaker limit than those numbers suggest. It is a speed bump; TOTP
+is the actual boundary. Making it exact needs shared storage such as Vercel KV.
