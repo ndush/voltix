@@ -1281,3 +1281,104 @@ a.ghost:hover {
   padding: 6px 12px;
   font-size: 12.5px;
 }
+
+/* ---- live preview ---- */
+.preview { margin-top: 16px; }
+
+.preview-tag {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #5a6474;
+  margin-bottom: 7px;
+}
+
+.preview-page {
+  border: 1px solid #232b3a;
+  border-radius: 11px;
+  overflow: hidden;
+  background: #0b0e14;
+}
+
+.preview-banner {
+  background: #ff444f;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-align: center;
+  padding: 5px 10px;
+}
+
+.preview-body { padding: 20px 18px 22px; text-align: center; }
+
+.preview-brand {
+  color: #ff444f;
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.preview-h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  line-height: 1.2;
+  margin-bottom: 7px;
+}
+
+.preview-sub {
+  font-size: 12.5px;
+  color: #8b94a5;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.preview-btn {
+  display: inline-block;
+  background: #ff444f;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 7px;
+}
+
+.field-help {
+  font-size: 11.5px;
+  color: #5a6474;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* ---- share link ---- */
+.share {
+  background: #0b0e14;
+  border: 1px solid #1c2230;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+.share-lbl {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #5a6474;
+  margin-bottom: 7px;
+}
+
+.share-row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+
+.share-url {
+  flex: 1;
+  min-width: 180px;
+  font-size: 12.5px;
+  color: #b0b6c0;
+  word-break: break-all;
+  font-family: ui-monospace, monospace;
+}
+
+.share-row .admin-add { margin-top: 0; padding: 7px 14px; }

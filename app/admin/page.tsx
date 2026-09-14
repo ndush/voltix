@@ -271,23 +271,42 @@ export default function Admin() {
       <section className="admin-section">
         <h2>Markets</h2>
         <p className="admin-muted">
-          These appear on your home page with live prices. The code must be a
-          real Deriv symbol — R_10, R_25, R_50, R_75 or R_100.
+          These show on your home page with real prices from Deriv, updating
+          every second. Pick a market on the left; on the right, write what you
+          want it called.
         </p>
         {content.markets.map((m, i) => (
           <div className="admin-row" key={i}>
-            <input
+            <select
               value={m.symbol}
-              placeholder="R_75"
               onChange={(e) => {
+                const choice = SYMBOL_CHOICES.find(
+                  (c) => c.code === e.target.value
+                );
                 const markets = [...content.markets];
-                markets[i] = { ...m, symbol: e.target.value };
+                markets[i] = {
+                  symbol: e.target.value,
+                  // Rename alongside the market unless it has been customised.
+                  name:
+                    SYMBOL_CHOICES.some((c) => c.label === m.name) || !m.name
+                      ? (choice?.label ?? m.name)
+                      : m.name,
+                };
                 set({ markets });
               }}
-            />
+            >
+              {!SYMBOL_CHOICES.some((c) => c.code === m.symbol) && (
+                <option value={m.symbol}>{m.symbol}</option>
+              )}
+              {SYMBOL_CHOICES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
             <input
               value={m.name}
-              placeholder="Volatility 75"
+              placeholder="What to call it on your page"
               onChange={(e) => {
                 const markets = [...content.markets];
                 markets[i] = { ...m, name: e.target.value };
@@ -307,7 +326,12 @@ export default function Admin() {
         <button
           className="admin-add"
           onClick={() =>
-            set({ markets: [...content.markets, { symbol: '', name: '' }] })
+            set({
+              markets: [
+                ...content.markets,
+                { symbol: 'R_75', name: 'Volatility 75' },
+              ],
+            })
           }
         >
           + Add market
@@ -363,15 +387,19 @@ export default function Admin() {
       <section className="admin-section">
         <h2>Campaigns</h2>
         <p className="admin-muted">
-          Each one is a different version of your home page with its own link.
-          Share a different link in each place you advertise, and your Deriv
-          reports will tell you which message actually brought people in.
+          A campaign is a second version of your home page with its own link.
+        </p>
+        <p className="admin-muted" style={{ marginTop: 8 }}>
+          Say you want to try a different message on WhatsApp. Make a campaign
+          called <em>whatsapp</em>, give it its own headline, and share that
+          link there instead. Anyone who signs up through it shows up
+          separately in your Deriv reports — so after a week you can see which
+          message actually worked, and do more of that one.
         </p>
         {Object.entries(content.campaigns).map(([key, c]) => (
           <details key={key} className="campaign">
             <summary>
               <span className="camp-name">{c.name || key}</span>
-              <code>/?c={key}</code>
               <a
                 href={`/?c=${encodeURIComponent(key)}`}
                 target="_blank"
@@ -379,9 +407,10 @@ export default function Admin() {
                 className="camp-preview"
                 onClick={(e) => e.stopPropagation()}
               >
-                Preview ↗
+                Open ↗
               </a>
             </summary>
+            <ShareLink campaignKey={key} />
             <CampaignFields
               campaign={c}
               onChange={(patch) => setCampaign(key, patch)}
@@ -402,7 +431,10 @@ export default function Admin() {
           className="admin-add"
           onClick={() => {
             const key = prompt(
-              'Short name for the link, letters and dashes only (e.g. payday):'
+              'What should this campaign be called?\n\n' +
+                'Use one word, letters or dashes only — it becomes part of the ' +
+                'link you share. For example "whatsapp" gives you a link ' +
+                'ending in ?c=whatsapp'
             );
             if (!key || !/^[a-z0-9_-]{1,40}$/i.test(key)) return;
             set({
@@ -457,6 +489,15 @@ export default function Admin() {
     </main>
   );
 }
+
+/** Deriv's synthetic indices, named the way a person would say them. */
+const SYMBOL_CHOICES: { code: string; label: string }[] = [
+  { code: 'R_10', label: 'Volatility 10' },
+  { code: 'R_25', label: 'Volatility 25' },
+  { code: 'R_50', label: 'Volatility 50' },
+  { code: 'R_75', label: 'Volatility 75' },
+  { code: 'R_100', label: 'Volatility 100' },
+];
 
 type EditorRow = { email: string; removable: boolean; isYou: boolean };
 
@@ -762,6 +803,42 @@ function ChangePassword() {
   );
 }
 
+/** The whole link, ready to paste into WhatsApp — not developer shorthand. */
+function ShareLink({ campaignKey }: { campaignKey: string }) {
+  const [copied, setCopied] = useState(false);
+  // Safe to read window during render: /admin renders "Loading…" on the
+  // server, so this component only ever mounts on the client.
+  const [href] = useState(() =>
+    typeof window === 'undefined'
+      ? ''
+      : `${window.location.origin}/?c=${encodeURIComponent(campaignKey)}`
+  );
+
+  return (
+    <div className="share">
+      <span className="share-lbl">Share this link</span>
+      <div className="share-row">
+        <code className="share-url">{href || '…'}</code>
+        <button
+          type="button"
+          className="admin-add"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(href);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1800);
+            } catch {
+              setCopied(false);
+            }
+          }}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CampaignFields({
   title,
   hint,
@@ -777,6 +854,29 @@ function CampaignFields({
     <section className="admin-section">
       {title && <h2>{title}</h2>}
       {hint && <p className="admin-muted">{hint}</p>}
+
+      {/* Seeing the result is worth more than any amount of explaining which
+          box does what. */}
+      <div className="preview">
+        <span className="preview-tag">This is what people will see</span>
+        <div className="preview-page">
+          {campaign.banner ? (
+            <div className="preview-banner">{campaign.banner}</div>
+          ) : null}
+          <div className="preview-body">
+            <div className="preview-brand">Voltix</div>
+            <div className="preview-h1">
+              {campaign.headline || 'Your headline goes here'}
+            </div>
+            <div className="preview-sub">
+              {campaign.subhead || 'The sentence underneath goes here'}
+            </div>
+            <span className="preview-btn">
+              {campaign.cta || 'Your button'}
+            </span>
+          </div>
+        </div>
+      </div>
 
       <label>
         <span className="lbl-row">
@@ -820,11 +920,19 @@ function CampaignFields({
         />
       </label>
       <label>
-        Campaign name in Deriv reports
+        <span className="lbl-row">
+          Label for your Deriv reports
+          <span className="lbl-hint">visitors never see this</span>
+        </span>
         <input
           value={campaign.utmCampaign}
           onChange={(e) => onChange({ utmCampaign: e.target.value })}
+          placeholder="e.g. whatsapp_march"
         />
+        <span className="field-help">
+          When someone signs up through this page, Deriv shows this label in
+          your partner reports — so you know which page brought them in.
+        </span>
       </label>
     </section>
   );
