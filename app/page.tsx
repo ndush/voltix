@@ -1,4 +1,4 @@
-import { RiskWarning, SiteFooter } from './components/SiteFooter';
+import { SiteFooter } from './components/SiteFooter';
 import { MarketTicker } from './components/MarketTicker';
 import { LoginButton } from './components/LoginButton';
 import { pickCampaign } from './lib/content';
@@ -57,10 +57,6 @@ export default async function Home({
             <p>{f.body}</p>
           </div>
         ))}
-      </section>
-
-      <section className="risk-section">
-        <RiskWarning />
       </section>
 
       <SiteFooter />
