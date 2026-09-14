@@ -278,9 +278,15 @@ export function useDerivTrading(account: Account | null, symbol: string) {
     new Map()
   );
   const reqId = useRef(1);
+  // Consecutive failed connections, reset once one succeeds, so a healthy
+  // reconnect stays fast while a broken endpoint is not hammered.
+  const failures = useRef(0);
 
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to force a reconnect. Deriv drops an idle socket, and the OTP is
+  // single-use, so reconnecting means running the whole handshake again.
+  const [attempt, setAttempt] = useState(0);
   // Tagged with the account the contracts belong to, so switching accounts
   // discards the previous list on read instead of resetting state from the
   // effect body (which would cascade an extra render).
@@ -306,6 +312,8 @@ export function useDerivTrading(account: Account | null, symbol: string) {
 
     let cancelled = false;
     let socket: WebSocket | null = null;
+    let keepAlive: ReturnType<typeof setInterval> | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const inflight = pending.current;
     const subs = streams.current;
 
@@ -359,7 +367,16 @@ export function useDerivTrading(account: Account | null, symbol: string) {
 
         socket.onopen = () => {
           if (cancelled) return;
+          failures.current = 0;
           setConnected(true);
+
+          // Deriv closes a socket that has been quiet, which previously left
+          // the panel stuck on "Connecting" with the buttons disabled.
+          keepAlive = setInterval(() => {
+            if (socket?.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ ping: 1 }));
+            }
+          }, 25000);
           // Streaming every open contract keeps positions current without
           // polling, and newly bought contracts appear on their own.
           const id = reqId.current++;
@@ -438,7 +455,16 @@ export function useDerivTrading(account: Account | null, symbol: string) {
           );
         };
 
-        socket.onclose = () => !cancelled && setConnected(false);
+        socket.onclose = () => {
+          clearInterval(keepAlive);
+          if (cancelled) return;
+          setConnected(false);
+          // Come back on our own rather than stranding the user on a dead
+          // socket with no way to trade and no explanation.
+          const wait = Math.min(2000 * 2 ** failures.current, 15000);
+          failures.current += 1;
+          retry = setTimeout(() => setAttempt((n) => n + 1), wait);
+        };
         socket.onerror = () => !cancelled && setError('socket_error');
 
         socket.onmessage = (msg) => {
@@ -472,6 +498,8 @@ export function useDerivTrading(account: Account | null, symbol: string) {
 
     return () => {
       cancelled = true;
+      clearInterval(keepAlive);
+      clearTimeout(retry);
       clearTimeout(histTimer);
       inflight.forEach((p) => p.reject(new Error('disconnected')));
       inflight.clear();
@@ -479,7 +507,7 @@ export function useDerivTrading(account: Account | null, symbol: string) {
       socket?.close();
       wsRef.current = null;
     };
-  }, [account, symbol]);
+  }, [account, symbol, attempt]);
 
   const send = useCallback((payload: Record<string, unknown>) => {
     const socket = wsRef.current;
