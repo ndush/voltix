@@ -227,7 +227,7 @@ export default function Admin() {
         </div>
         <div className="admin-actions">
           <a href="/" target="_blank" rel="noreferrer" className="ghost">
-            Preview ↗
+            View live site ↗
           </a>
           {editor && <span className="admin-who">{editor}</span>}
           <button
@@ -291,7 +291,7 @@ export default function Admin() {
                 className="camp-preview"
                 onClick={(e) => e.stopPropagation()}
               >
-                Open ↗
+                Open live ↗
               </a>
             </summary>
             <ShareLink campaignKey={key} />
@@ -474,7 +474,9 @@ export default function Admin() {
       </details>
 
       <div className={`savebar ${dirty ? 'on' : ''}`} aria-hidden={!dirty}>
-        <span className="savebar-msg">You have unsaved changes</span>
+        <span className="savebar-msg">
+          Not saved yet — the live site still shows the old version
+        </span>
         <button
           className="ghost"
           onClick={() => {
@@ -870,7 +872,9 @@ function CampaignFields({
       {/* Seeing the result is worth more than any amount of explaining which
           box does what. */}
       <div className="preview">
-        <span className="preview-tag">This is what people will see</span>
+        <span className="preview-tag">
+          Preview — what visitors see once you save
+        </span>
         <div className="preview-page">
           {campaign.banner ? (
             <div className="preview-banner">{campaign.banner}</div>
