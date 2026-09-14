@@ -1,6 +1,5 @@
 import 'server-only';
 import { get, put } from '@vercel/blob';
-import { revalidateTag, unstable_cache } from 'next/cache';
 import bundled from '@/content/site.json';
 import type { SiteContent } from './content';
 
@@ -12,18 +11,19 @@ import type { SiteContent } from './content';
  * renders correctly before anyone has saved anything and if Blob is briefly
  * unreachable.
  *
- * Reads are cached and invalidated on save rather than fetched per request.
- * Reading per request cost one Blob operation per page view — 10k views would
- * exhaust the monthly free allowance — and paid a round trip to the store's
- * region on every render. Invalidating on write keeps saves instant while
- * making ordinary traffic free.
+ * Reads are uncached.
  *
- * `unstable_cache` rather than the `use cache` directive that replaces it:
- * `use cache` requires enabling Cache Components, which changes rendering
- * semantics across the whole app. Not worth that for one cached read.
+ * They were cached and invalidated on write, but revalidateTag did not clear
+ * an unstable_cache entry under Next 16 — a saved edit stayed invisible on the
+ * public page for up to the five minute backstop, which is indistinguishable
+ * from the editor being broken. An editor who cannot trust Save is worse than
+ * a few extra reads.
+ *
+ * The cost is one Blob operation per page view, against a 10k monthly
+ * allowance. Worth revisiting with a caching approach that demonstrably
+ * invalidates, but not at the price of correctness.
  */
 const PATHNAME = 'site-content.json';
-const CACHE_TAG = 'site-content';
 
 export const FALLBACK = bundled as SiteContent;
 
@@ -61,19 +61,12 @@ async function fetchContent(): Promise<{
   }
 }
 
-const cachedRead = unstable_cache(fetchContent, ['site-content'], {
-  tags: [CACHE_TAG],
-  // A backstop only: a save invalidates the tag immediately. This just bounds
-  // how long a missed invalidation could serve stale copy.
-  revalidate: 300,
-});
-
 export async function readContent(): Promise<{
   content: SiteContent;
   source: 'blob' | 'fallback';
 }> {
   if (!blobConfigured()) return { content: FALLBACK, source: 'fallback' };
-  return cachedRead();
+  return fetchContent();
 }
 
 export async function writeContent(content: SiteContent): Promise<void> {
@@ -89,9 +82,4 @@ export async function writeContent(content: SiteContent): Promise<void> {
     cacheControlMaxAge: 0,
   });
 
-  // Expire immediately rather than the recommended 'max' profile: 'max' serves
-  // stale content while revalidating behind it, so an editor would save, reload
-  // and see their old copy. `updateTag` gives read-your-own-writes but only
-  // works in Server Actions, and this is a Route Handler.
-  revalidateTag(CACHE_TAG, { expire: 0 });
 }
