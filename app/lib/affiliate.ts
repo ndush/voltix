@@ -47,3 +47,30 @@ export function affiliateTokenOrThrow(): string | null {
   }
   return resolved;
 }
+
+/**
+ * Whether the in-site trading screen is available.
+ *
+ * Off by default. A referral site sends people to Deriv to trade there, which
+ * is a materially different regulatory position from operating a screen that
+ * places their trades. Turning this on is a deliberate act, not a default.
+ */
+export function tradingEnabled(): boolean {
+  return process.env.TRADING_ENABLED === '1';
+}
+
+/**
+ * Where the reshare button sends people when trading is off.
+ *
+ * Deriv documents this signup URL for partners, with the tracking token as `t`
+ * and the campaign as `utm_campaign`.
+ */
+export function signupUrl(token: string | null, campaign: string, source: string): string {
+  const base =
+    process.env.DERIV_SIGNUP_URL || 'https://hub.deriv.com/tradershub/signup';
+  const params = new URLSearchParams();
+  if (token) params.set('t', token);
+  params.set('utm_campaign', campaign);
+  params.set('utm_source', source);
+  return `${base}?${params.toString()}`;
+}

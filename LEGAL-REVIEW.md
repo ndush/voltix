@@ -31,19 +31,19 @@ Expected audience: Kenya and East Africa.
 
 ## 2. What the site does technically
 
-1. A visitor lands on the marketing page and sees live prices.
-2. They click "Login with Deriv" and are sent to Deriv's own login, carrying an
-   affiliate token that credits the operator for the signup.
-3. They authenticate **with Deriv**, not with us. We never see their password.
-4. They return to our dashboard, where they can place trades on their own Deriv
-   account through Deriv's API.
+1. A visitor lands on the marketing page and sees live prices, taken from
+   Deriv's public feed. No account is needed to see them.
+2. They click the call to action and are sent **to Deriv**, carrying a tracking
+   token that credits the operator for the signup.
+3. Everything after that happens on Deriv: registration, identity checks,
+   funding and trading. They do not return to this site, and no account is
+   created here.
 
-The site can therefore be used to **place real-money trades**, not only to
-refer. That distinction may matter to the questions below.
-
-Safeguards already built in: demo accounts are selected by default, real-money
-accounts show a persistent warning banner, and real-money trades require an
-explicit confirmation stating the cost, potential payout, and worst-case loss.
+**The site does not place trades.** It is a referral page. Trading
+functionality exists in the codebase but is switched off and unreachable, and
+turning it on would be a deliberate change — if that is ever proposed, the
+questions below should be revisited, because operating a trading screen is a
+materially different activity from referring.
 
 ---
 
@@ -82,11 +82,11 @@ the content.
 
 ## 5. Questions for counsel
 
-1. **Licensing.** Does operating this site — referring Kenyan residents to a
-   derivatives broker for commission, and providing an interface through which
-   they place trades — require authorisation from the **Capital Markets
-   Authority**, or fall within its online forex broker regulations? Does the
-   answer change because the site can place trades, rather than only refer?
+1. **Licensing.** Does referring Kenyan residents to a derivatives broker for
+   commission require authorisation from the **Capital Markets Authority**, or
+   fall within its online forex broker regulations? Separately: would the answer
+   change if the site later offered trading directly, which it is built to do
+   but currently does not?
 
 2. **Financial promotion.** Is the risk warning adequate in wording and
    prominence for a financial promotion directed at Kenyan consumers? Are there
@@ -123,7 +123,6 @@ Any of the following is straightforward to implement:
 - Adding an age or jurisdiction gate before login
 - Geo-blocking specific countries
 - Rewriting either legal page
-- Removing the ability to place trades, leaving referral only
 - Adding a data protection contact and rights-request route
 
 The constraint worth knowing: **the trading functionality is the product**.

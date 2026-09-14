@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { SESSION_COOKIE, readSession } from '@/app/lib/adminAuth';
+import { tradingEnabled } from '@/app/lib/affiliate';
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -25,7 +26,22 @@ export function proxy(req: NextRequest) {
     return NextResponse.next({ request: { headers } });
   }
 
-  // ---- Trading dashboard: requires a Deriv session ----
+  // ---- Trading ----
+  const isTrading =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/api/deriv') ||
+    pathname === '/api/auth/callback' ||
+    pathname === '/api/auth/me';
+
+  // Off by default: a referral site must not expose a screen that places
+  // trades, since that is the part with a regulatory question over it.
+  if (isTrading && !tradingEnabled()) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'trading_disabled' }, { status: 404 });
+    }
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
   if (!req.cookies.get('deriv_token')?.value && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/', req.url));
   }
@@ -34,5 +50,12 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/api/admin/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/admin/:path*',
+    '/api/admin/:path*',
+    '/api/deriv/:path*',
+    '/api/auth/callback',
+    '/api/auth/me',
+  ],
 };

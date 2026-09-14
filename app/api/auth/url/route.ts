@@ -1,10 +1,35 @@
 import { NextResponse, NextRequest } from 'next/server';
 import crypto from 'crypto';
-import { affiliateTokenOrThrow, resolveAffiliateToken } from '@/app/lib/affiliate';
+import {
+  affiliateTokenOrThrow,
+  resolveAffiliateToken,
+  signupUrl,
+  tradingEnabled,
+} from '@/app/lib/affiliate';
 import { pickCampaign } from '@/app/lib/content';
 import { readContent } from '@/app/lib/contentStore';
 
 export async function GET(req: NextRequest) {
+  // Referral mode: no OAuth, no session, no return trip. The visitor goes to
+  // Deriv carrying the tracking token and signs up there.
+  if (!tradingEnabled()) {
+    const campaignKey = req.nextUrl.searchParams.get('c');
+    const { content } = await readContent();
+    const campaign = pickCampaign(content, campaignKey);
+    const isNamed = !!campaignKey && campaignKey in content.campaigns;
+    const token =
+      resolveAffiliateToken(campaign.affiliateToken) ?? affiliateTokenOrThrow();
+    return NextResponse.json({
+      url: signupUrl(
+        token,
+        isNamed
+          ? campaign.utmCampaign
+          : process.env.DERIV_AFFILIATE_CAMPAIGN || campaign.utmCampaign,
+        campaign.utmSource
+      ),
+    });
+  }
+
   // Generate PKCE code_verifier and code_challenge
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
   const codeChallenge = crypto
