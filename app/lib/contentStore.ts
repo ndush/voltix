@@ -19,8 +19,17 @@ const PATHNAME = 'site-content.json';
 
 export const FALLBACK = bundled as SiteContent;
 
+/**
+ * Whether a Blob store is reachable.
+ *
+ * Vercel connects stores over OIDC by default, which sets BLOB_STORE_ID and no
+ * long-lived token — the SDK mints short-lived credentials itself at runtime.
+ * A store connected the older way instead exposes BLOB_READ_WRITE_TOKEN, so
+ * both are accepted. Checking only for the token reports a perfectly healthy
+ * OIDC connection as missing.
+ */
 export function blobConfigured(): boolean {
-  return !!process.env.BLOB_READ_WRITE_TOKEN;
+  return !!(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 export async function readContent(): Promise<{
