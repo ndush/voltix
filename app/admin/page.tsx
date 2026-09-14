@@ -222,7 +222,7 @@ export default function Admin() {
         <div className="admin-title">
           <h1>Your site</h1>
           <p className="admin-muted">
-            Change what visitors see. Nothing here can break your trading page.
+            Edit the text below, then press Save. Changes go live straight away.
           </p>
         </div>
         <div className="admin-actions">
@@ -268,6 +268,84 @@ export default function Admin() {
         onChange={(patch) => setCampaign(null, patch)}
       />
 
+      <section className="admin-section">
+        <h2>Campaigns</h2>
+        <p className="admin-muted">
+          A campaign is a second version of your home page with its own link.
+        </p>
+        <p className="admin-muted" style={{ marginTop: 8 }}>
+          Say you want to try a different message on WhatsApp. Make a campaign
+          called <em>whatsapp</em>, give it its own headline, and share that
+          link there instead. Anyone who signs up through it shows up
+          separately in your Deriv reports — so after a week you can see which
+          message actually worked, and do more of that one.
+        </p>
+        {Object.entries(content.campaigns).map(([key, c]) => (
+          <details key={key} className="campaign">
+            <summary>
+              <span className="camp-name">{c.name || key}</span>
+              <a
+                href={`/?c=${encodeURIComponent(key)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="camp-preview"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Open ↗
+              </a>
+            </summary>
+            <ShareLink campaignKey={key} />
+            <CampaignFields
+              campaign={c}
+              onChange={(patch) => setCampaign(key, patch)}
+            />
+            <button
+              className="admin-remove"
+              onClick={() => {
+                const campaigns = { ...content.campaigns };
+                delete campaigns[key];
+                set({ campaigns });
+              }}
+            >
+              Delete this campaign
+            </button>
+          </details>
+        ))}
+        <button
+          className="admin-add"
+          onClick={() => {
+            const key = prompt(
+              'What should this campaign be called?\n\n' +
+                'Use one word, letters or dashes only — it becomes part of the ' +
+                'link you share. For example "whatsapp" gives you a link ' +
+                'ending in ?c=whatsapp'
+            );
+            if (!key || !/^[a-z0-9_-]{1,40}$/i.test(key)) return;
+            set({
+              campaigns: {
+                ...content.campaigns,
+                [key]: {
+                  name: key,
+                  headline: '',
+                  subhead: '',
+                  cta: 'Start Trading →',
+                  banner: '',
+                  utmCampaign: key,
+                  utmSource: 'voltix',
+                },
+              },
+            });
+          }}
+        >
+          + Add campaign
+        </button>
+      </section>
+
+      <details className="fold">
+        <summary>
+          <span className="fold-title">The rest of the page</span>
+          <span className="fold-hint">markets and selling points</span>
+        </summary>
       <section className="admin-section">
         <h2>Markets</h2>
         <p className="admin-muted">
@@ -384,82 +462,16 @@ export default function Admin() {
         </button>
       </section>
 
-      <section className="admin-section">
-        <h2>Campaigns</h2>
-        <p className="admin-muted">
-          A campaign is a second version of your home page with its own link.
-        </p>
-        <p className="admin-muted" style={{ marginTop: 8 }}>
-          Say you want to try a different message on WhatsApp. Make a campaign
-          called <em>whatsapp</em>, give it its own headline, and share that
-          link there instead. Anyone who signs up through it shows up
-          separately in your Deriv reports — so after a week you can see which
-          message actually worked, and do more of that one.
-        </p>
-        {Object.entries(content.campaigns).map(([key, c]) => (
-          <details key={key} className="campaign">
-            <summary>
-              <span className="camp-name">{c.name || key}</span>
-              <a
-                href={`/?c=${encodeURIComponent(key)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="camp-preview"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Open ↗
-              </a>
-            </summary>
-            <ShareLink campaignKey={key} />
-            <CampaignFields
-              campaign={c}
-              onChange={(patch) => setCampaign(key, patch)}
-            />
-            <button
-              className="admin-remove"
-              onClick={() => {
-                const campaigns = { ...content.campaigns };
-                delete campaigns[key];
-                set({ campaigns });
-              }}
-            >
-              Delete this campaign
-            </button>
-          </details>
-        ))}
-        <button
-          className="admin-add"
-          onClick={() => {
-            const key = prompt(
-              'What should this campaign be called?\n\n' +
-                'Use one word, letters or dashes only — it becomes part of the ' +
-                'link you share. For example "whatsapp" gives you a link ' +
-                'ending in ?c=whatsapp'
-            );
-            if (!key || !/^[a-z0-9_-]{1,40}$/i.test(key)) return;
-            set({
-              campaigns: {
-                ...content.campaigns,
-                [key]: {
-                  name: key,
-                  headline: '',
-                  subhead: '',
-                  cta: 'Start Trading →',
-                  banner: '',
-                  utmCampaign: key,
-                  utmSource: 'voltix',
-                },
-              },
-            });
-          }}
-        >
-          + Add campaign
-        </button>
-      </section>
+      </details>
 
-      <Editors />
-
-      <ChangePassword />
+      <details className="fold">
+        <summary>
+          <span className="fold-title">Account and access</span>
+          <span className="fold-hint">your password, who else can edit</span>
+        </summary>
+        <Editors />
+        <ChangePassword />
+      </details>
 
       <div className={`savebar ${dirty ? 'on' : ''}`} aria-hidden={!dirty}>
         <span className="savebar-msg">You have unsaved changes</span>

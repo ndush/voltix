@@ -1382,3 +1382,56 @@ a.ghost:hover {
 }
 
 .share-row .admin-add { margin-top: 0; padding: 7px 14px; }
+
+/* ---- folded sections ---- */
+.fold {
+  background: #131824;
+  border: 1px solid #1c2230;
+  border-radius: 14px;
+  margin-bottom: 14px;
+  padding: 0 22px;
+}
+
+.fold[open] { padding-bottom: 8px; }
+
+.fold > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 18px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fold > summary::-webkit-details-marker { display: none; }
+
+.fold > summary::before {
+  content: "▸";
+  color: #5a6474;
+  font-size: 11px;
+  transition: transform .15s ease;
+}
+
+.fold[open] > summary::before { transform: rotate(90deg); }
+
+.fold-title {
+  font-family: inherit;
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.fold-hint { font-size: 12.5px; color: #7b8494; }
+
+/* Sections nested in a fold lose their own card, so it reads as one panel. */
+.fold .admin-section {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0 0 22px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold > summary::before { transition: none; }
+}

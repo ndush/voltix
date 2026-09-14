@@ -1,30 +1,42 @@
 {
   "brand": "Voltix",
   "markets": [
-    { "symbol": "R_75", "name": "Volatility 75" },
-    { "symbol": "R_100", "name": "Volatility 100" },
-    { "symbol": "R_50", "name": "Volatility 50" },
-    { "symbol": "R_25", "name": "Volatility 25" }
+    {
+      "symbol": "R_75",
+      "name": "Volatility 75"
+    },
+    {
+      "symbol": "R_100",
+      "name": "Volatility 100"
+    },
+    {
+      "symbol": "R_50",
+      "name": "Volatility 50"
+    },
+    {
+      "symbol": "R_25",
+      "name": "Volatility 25"
+    }
   ],
   "features": [
     {
-      "title": "Zero custody",
-      "body": "Your funds stay with Deriv. We never hold, move, or touch your money."
+      "title": "Your money stays yours",
+      "body": "Your funds sit in your own Deriv account. We are not a broker and never hold or move your money."
     },
     {
-      "title": "Live pricing",
-      "body": "Streaming prices straight from Deriv, with no delay added in between."
+      "title": "Live prices, no signup",
+      "body": "Real prices straight from Deriv, updating every second, before you commit to anything."
     },
     {
-      "title": "Trade in seconds",
-      "body": "Pick a direction, set a stake, and place a contract in two clicks."
+      "title": "Start in minutes",
+      "body": "Opening a Deriv account takes a couple of minutes, and you can practise free before risking anything."
     }
   ],
   "defaultCampaign": {
     "name": "Default",
-    "headline": "Trade Volatility Indices",
-    "subhead": "Powered by Deriv. Built for speed. Zero custody of your funds.",
-    "cta": "Start Trading →",
+    "headline": "Trade volatility indices, any hour",
+    "subhead": "Powered by Deriv. Live prices around the clock, and your money stays in your own Deriv account — we never touch it.",
+    "cta": "Open a Deriv account →",
     "banner": "",
     "utmCampaign": "reshare_site",
     "utmSource": "voltix"
@@ -32,29 +44,38 @@
   "campaigns": {
     "weekend": {
       "name": "Weekend push",
-      "headline": "Markets never sleep",
-      "subhead": "Synthetic indices trade 24/7, weekends included. Open a Deriv account and trade whenever you want.",
-      "cta": "Trade this weekend →",
-      "banner": "Synthetic indices trade 24/7 — including right now.",
+      "headline": "Markets that never close",
+      "subhead": "Synthetic indices trade every day of the week, weekends included. Open a Deriv account and trade whenever suits you.",
+      "cta": "Open an account →",
+      "banner": "Trading right now, including weekends",
       "utmCampaign": "weekend_push",
       "utmSource": "voltix"
     },
-    "beginner": {
-      "name": "Beginner audience",
-      "headline": "Start with a free demo account",
-      "subhead": "Practise with 10,000 in virtual funds before risking anything real. No deposit needed to begin.",
-      "cta": "Try the demo →",
+    "demo": {
+      "name": "Free demo",
+      "headline": "Practise before you risk anything",
+      "subhead": "Every Deriv account comes with 10,000 in virtual funds. Trade the real markets with none of your own money until you are ready.",
+      "cta": "Try the free demo →",
       "banner": "",
-      "utmCampaign": "beginner_demo",
+      "utmCampaign": "free_demo",
       "utmSource": "voltix"
     },
     "volatility": {
-      "name": "Volatility focus",
+      "name": "Volatility 75",
       "headline": "Trade the Volatility 75",
       "subhead": "One of Deriv's most active synthetic indices, priced every second, available around the clock.",
-      "cta": "Trade V75 →",
+      "cta": "Trade V75 on Deriv →",
       "banner": "",
       "utmCampaign": "v75_focus",
+      "utmSource": "voltix"
+    },
+    "whatsapp": {
+      "name": "WhatsApp share",
+      "headline": "Trade on your own schedule",
+      "subhead": "Open a Deriv account in a couple of minutes and trade synthetic indices whenever you have time.",
+      "cta": "Get started →",
+      "banner": "",
+      "utmCampaign": "whatsapp",
       "utmSource": "voltix"
     }
   }
