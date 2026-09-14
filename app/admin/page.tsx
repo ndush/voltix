@@ -701,7 +701,10 @@ function ChangePassword() {
           />
         </label>
         <label>
-          New password <span className="admin-muted">(12 characters or more)</span>
+          <span className="lbl-row">
+            New password
+            <span className="lbl-hint">12 characters or more</span>
+          </span>
           <input
             type="password"
             autoComplete="new-password"
@@ -807,7 +810,10 @@ function CampaignFields({
         />
       </label>
       <label>
-        Banner across the top <span className="admin-muted">(leave empty for none)</span>
+        <span className="lbl-row">
+          Banner across the top
+          <span className="lbl-hint">optional</span>
+        </span>
         <input
           value={campaign.banner ?? ''}
           onChange={(e) => onChange({ banner: e.target.value })}

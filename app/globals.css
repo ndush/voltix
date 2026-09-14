@@ -1268,3 +1268,16 @@ a.ghost:hover {
 }
 
 .ed-new .admin-add { margin-top: 0; }
+
+.lbl-hint {
+  font-size: 11px;
+  color: #5a6474;
+  font-weight: 400;
+}
+
+/* The dashboard header sits on a dark bar, so ghost buttons need a little
+   more presence there than they do on a form. */
+.account .ghost {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}

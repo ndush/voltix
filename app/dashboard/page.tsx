@@ -338,7 +338,9 @@ export default function Dashboard() {
               </span>
             </>
           )}
-          <button onClick={logout}>Logout</button>
+          <button className="ghost" onClick={logout}>
+            Log out
+          </button>
         </div>
       </header>
 
