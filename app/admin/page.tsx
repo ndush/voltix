@@ -13,6 +13,9 @@ export default function Admin() {
   const [signingIn, setSigningIn] = useState(false);
   const [content, setContent] = useState<SiteContent | null>(null);
   const [source, setSource] = useState<'blob' | 'fallback' | null>(null);
+  // Snapshot of what is stored, so unsaved edits can be detected. Without it a
+  // client can edit for five minutes, close the tab and silently lose the lot.
+  const [saved, setSaved] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   // Fetch is separated from the state update so the effect never calls
@@ -48,6 +51,7 @@ export default function Admin() {
       }
       if ('content' in r && r.content) {
         setContent(r.content);
+        setSaved(JSON.stringify(r.content));
         setSource(r.source ?? null);
         setEditor(r.editor ?? null);
       }
@@ -66,6 +70,16 @@ export default function Admin() {
     };
   }, [apply, fetchContent]);
 
+  // Browsers only allow this warning when something is genuinely unsaved.
+  useEffect(() => {
+    const hasEdits =
+      saved !== null && content !== null && JSON.stringify(content) !== saved;
+    if (!hasEdits) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [content, saved]);
+
   async function save() {
     if (!content) return;
     setStatus({ kind: 'saving' });
@@ -77,7 +91,8 @@ export default function Admin() {
     const body = await res.json().catch(() => ({}));
     if (res.ok) {
       setSource('blob');
-      setStatus({ kind: 'saved', message: 'Saved. The site is live now.' });
+      setSaved(JSON.stringify(content));
+      setStatus({ kind: 'saved', message: 'Saved. Your changes are live now.' });
     } else {
       setStatus({
         kind: 'error',
@@ -183,6 +198,8 @@ export default function Admin() {
     );
   }
 
+  const dirty = saved !== null && JSON.stringify(content) !== saved;
+
   const set = (patch: Partial<SiteContent>) =>
     setContent({ ...content, ...patch });
 
@@ -202,13 +219,19 @@ export default function Admin() {
   return (
     <main className="admin">
       <header className="admin-head">
-        <h1>Site content</h1>
+        <div className="admin-title">
+          <h1>Your site</h1>
+          <p className="admin-muted">
+            Change what visitors see. Nothing here can break your trading page.
+          </p>
+        </div>
         <div className="admin-actions">
-          {editor && <span className="admin-who">{editor}</span>}
-          <a href="/" target="_blank" rel="noreferrer">
-            View site ↗
+          <a href="/" target="_blank" rel="noreferrer" className="ghost">
+            Preview ↗
           </a>
+          {editor && <span className="admin-who">{editor}</span>}
           <button
+            className="ghost"
             onClick={async () => {
               await fetch('/api/admin/logout', { method: 'POST' });
               setAuthed(false);
@@ -217,13 +240,6 @@ export default function Admin() {
             }}
           >
             Sign out
-          </button>
-          <button
-            className="btn-primary"
-            onClick={save}
-            disabled={status.kind === 'saving'}
-          >
-            {status.kind === 'saving' ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </header>
@@ -255,8 +271,8 @@ export default function Admin() {
       <section className="admin-section">
         <h2>Markets</h2>
         <p className="admin-muted">
-          Shown on the home page with live prices. The symbol must be a Deriv
-          code such as R_75.
+          These appear on your home page with live prices. The code must be a
+          real Deriv symbol — R_10, R_25, R_50, R_75 or R_100.
         </p>
         {content.markets.map((m, i) => (
           <div className="admin-row" key={i}>
@@ -300,6 +316,9 @@ export default function Admin() {
 
       <section className="admin-section">
         <h2>Selling points</h2>
+        <p className="admin-muted">
+          Three short reasons to choose you, shown under the prices.
+        </p>
         {content.features.map((f, i) => (
           <div className="admin-stack" key={i}>
             <input
@@ -344,13 +363,24 @@ export default function Admin() {
       <section className="admin-section">
         <h2>Campaigns</h2>
         <p className="admin-muted">
-          Each one is a different version of the home page with its own link,
-          so you can see which message brings people in.
+          Each one is a different version of your home page with its own link.
+          Share a different link in each place you advertise, and your Deriv
+          reports will tell you which message actually brought people in.
         </p>
         {Object.entries(content.campaigns).map(([key, c]) => (
           <details key={key} className="campaign">
             <summary>
-              {c.name || key} <code>/?c={key}</code>
+              <span className="camp-name">{c.name || key}</span>
+              <code>/?c={key}</code>
+              <a
+                href={`/?c=${encodeURIComponent(key)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="camp-preview"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Preview ↗
+              </a>
             </summary>
             <CampaignFields
               campaign={c}
@@ -396,6 +426,27 @@ export default function Admin() {
       </section>
 
       <ChangePassword />
+
+      <div className={`savebar ${dirty ? 'on' : ''}`} aria-hidden={!dirty}>
+        <span className="savebar-msg">You have unsaved changes</span>
+        <button
+          className="ghost"
+          onClick={() => {
+            if (saved) setContent(JSON.parse(saved));
+            setStatus({ kind: 'idle' });
+          }}
+          disabled={status.kind === 'saving'}
+        >
+          Discard
+        </button>
+        <button
+          className="btn-primary"
+          onClick={save}
+          disabled={status.kind === 'saving'}
+        >
+          {status.kind === 'saving' ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
 
       <p className="admin-foot">
         The risk warning, Terms and Privacy pages are required disclosures and
@@ -573,10 +624,18 @@ function CampaignFields({
       {hint && <p className="admin-muted">{hint}</p>}
 
       <label>
-        Headline
+        <span className="lbl-row">
+          Headline
+          <span
+            className={`counter ${campaign.headline.length > 60 ? 'over' : ''}`}
+          >
+            {campaign.headline.length}/60
+          </span>
+        </span>
         <input
           value={campaign.headline}
           onChange={(e) => onChange({ headline: e.target.value })}
+          placeholder="The big text at the top"
         />
       </label>
       <label>
@@ -585,6 +644,7 @@ function CampaignFields({
           rows={2}
           value={campaign.subhead}
           onChange={(e) => onChange({ subhead: e.target.value })}
+          placeholder="One sentence explaining what you offer"
         />
       </label>
       <label>
