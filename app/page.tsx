@@ -31,7 +31,9 @@ export default async function Home({
         <div className="logo">{content.brand}</div>
         <nav>
           <a href="#markets">Markets</a>
-          <LoginButton campaignKey={campaignKey} label="Login with Deriv" />
+          {/* Not "Login": nobody has an account yet, and implying one is
+              needed turns away the newcomers this page exists to reach. */}
+          <LoginButton campaignKey={campaignKey} label="Get started" />
         </nav>
       </header>
 
