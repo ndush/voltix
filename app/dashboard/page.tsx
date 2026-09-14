@@ -44,7 +44,13 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
-  const [tick, setTick] = useState<string | null>(null);
+  // Direction as well as value: on a fast index the number alone is hard to
+  // read, and which way it just moved is the thing a trader is watching for.
+  const [tick, setTick] = useState<{ v: string; dir: 'up' | 'down' | null }>({
+    v: '',
+    dir: null,
+  });
+  const lastTick = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [stake, setStake] = useState('1');
@@ -149,7 +155,13 @@ export default function Dashboard() {
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
       const q = Number(data.tick?.quote);
-      if (Number.isFinite(q)) setTick(q.toFixed(4));
+      if (!Number.isFinite(q)) return;
+      const prev = lastTick.current;
+      lastTick.current = q;
+      setTick({
+        v: q.toFixed(4),
+        dir: prev == null ? null : q > prev ? 'up' : q < prev ? 'down' : null,
+      });
     };
     return () => ws.close();
   }, []);
@@ -320,8 +332,9 @@ export default function Dashboard() {
               <span className={`badge ${isReal ? 'badge-real' : 'badge-demo'}`}>
                 {isReal ? 'REAL MONEY' : 'DEMO'}
               </span>
-              <span>
-                {money(account?.balance)} {account?.currency ?? ''}
+              <span className="bal">
+                <span className="bal-num">{money(account?.balance)}</span>
+                <span className="bal-cur">{account?.currency ?? ''}</span>
               </span>
             </>
           )}
@@ -344,8 +357,21 @@ export default function Dashboard() {
       )}
 
       <section className="trade-panel">
-        <h2>Volatility 75 Index</h2>
-        <div className="price">{tick ?? '—'}</div>
+        <div className="sym">
+          <h2>Volatility 75</h2>
+          <span className="sym-code">{SYMBOL}</span>
+        </div>
+        <div className={`price ${tick.dir ?? ''}`}>
+          <span className="price-val">{tick.v || '—'}</span>
+          {tick.dir && (
+            <span className="price-arrow" aria-hidden="true">
+              {tick.dir === 'up' ? '▲' : '▼'}
+            </span>
+          )}
+        </div>
+        <p className="price-note">
+          {tick.v ? 'Live price, updating every second' : 'Connecting to the price feed…'}
+        </p>
 
         <div className="fields">
           <label>
@@ -407,27 +433,30 @@ export default function Dashboard() {
         )}
 
         <div className="conn">
-          {connected ? (
-            <span className="ok">● connected</span>
-          ) : (
-            <span className="warn">○ {wsError ?? 'connecting…'}</span>
-          )}
+          <span className={`pill ${connected ? 'live' : 'off'}`}>
+            <span className="pill-dot" aria-hidden="true" />
+            {connected ? 'Live' : (wsError ?? 'Connecting…')}
+          </span>
         </div>
 
         <div className="actions">
           <button
-            className="buy"
+            className="dir up"
             disabled={!connected || busy}
             onClick={() => startTrade('CALL')}
           >
-            {busy ? '…' : 'Buy / Rise'}
+            <span className="dir-arrow" aria-hidden="true">▲</span>
+            <span className="dir-label">{busy ? 'Working…' : 'Rise'}</span>
+            <span className="dir-sub">Price goes up</span>
           </button>
           <button
-            className="sell"
+            className="dir down"
             disabled={!connected || busy}
             onClick={() => startTrade('PUT')}
           >
-            {busy ? '…' : 'Sell / Fall'}
+            <span className="dir-arrow" aria-hidden="true">▼</span>
+            <span className="dir-label">{busy ? 'Working…' : 'Fall'}</span>
+            <span className="dir-sub">Price goes down</span>
           </button>
         </div>
 
