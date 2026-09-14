@@ -354,7 +354,14 @@ export default function Admin() {
           want it called.
         </p>
         {content.markets.map((m, i) => (
-          <div className="admin-row" key={i}>
+          <div
+            className={`admin-row ${
+              content.markets.findIndex((o) => o.symbol === m.symbol) !== i
+                ? 'dupe'
+                : ''
+            }`}
+            key={i}
+          >
             <select
               value={m.symbol}
               onChange={(e) => {
@@ -401,16 +408,29 @@ export default function Admin() {
             </button>
           </div>
         ))}
+        {new Set(content.markets.map((m) => m.symbol)).size !==
+          content.markets.length && (
+          <p className="admin-error">
+            The same market is listed more than once — it will appear twice on
+            your page. Remove the extra row.
+          </p>
+        )}
+
         <button
           className="admin-add"
-          onClick={() =>
+          onClick={() => {
+            // Default to a market that is not already listed, so pressing this
+            // twice does not quietly put the same one on the page twice.
+            const used = new Set(content.markets.map((m) => m.symbol));
+            const next =
+              SYMBOL_CHOICES.find((c) => !used.has(c.code)) ?? SYMBOL_CHOICES[0];
             set({
               markets: [
                 ...content.markets,
-                { symbol: 'R_75', name: 'Volatility 75' },
+                { symbol: next.code, name: next.label },
               ],
-            })
-          }
+            });
+          }}
         >
           + Add market
         </button>

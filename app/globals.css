@@ -1435,3 +1435,8 @@ a.ghost:hover {
 @media (prefers-reduced-motion: reduce) {
   .fold > summary::before { transition: none; }
 }
+
+.admin-row.dupe select,
+.admin-row.dupe input {
+  border-color: #78350f;
+}
