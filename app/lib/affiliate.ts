@@ -60,17 +60,27 @@ export function tradingEnabled(): boolean {
 }
 
 /**
- * Where the reshare button sends people when trading is off.
+ * Where the reshare button sends people.
  *
- * Deriv documents this signup URL for partners, with the tracking token as `t`
- * and the campaign as `utm_campaign`.
+ * Deriv's documented partner signup URL (hub.deriv.com/tradershub/signup) now
+ * 301s to their marketing homepage, which keeps the token but drops the
+ * visitor somewhere they have to hunt for a signup form.
+ *
+ * Their own tracking link lands on the real form but overwrites utm_campaign
+ * with the value configured on the link, which would collapse every campaign
+ * into one and defeat the point of having them.
+ *
+ * This is the page the tracking link ends on, addressed directly: a real
+ * signup form, the token intact, and our own campaign tag preserved. Verified
+ * against all three.
  */
 export function signupUrl(token: string | null, campaign: string, source: string): string {
   const base =
-    process.env.DERIV_SIGNUP_URL || 'https://hub.deriv.com/tradershub/signup';
+    process.env.DERIV_SIGNUP_URL || 'https://home.deriv.com/dashboard/signup';
   const params = new URLSearchParams();
   if (token) params.set('t', token);
   params.set('utm_campaign', campaign);
   params.set('utm_source', source);
+  params.set('utm_medium', 'affiliate');
   return `${base}?${params.toString()}`;
 }
