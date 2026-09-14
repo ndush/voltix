@@ -425,6 +425,8 @@ export default function Admin() {
         </button>
       </section>
 
+      <Editors />
+
       <ChangePassword />
 
       <div className={`savebar ${dirty ? 'on' : ''}`} aria-hidden={!dirty}>
@@ -453,6 +455,156 @@ export default function Admin() {
         are not editable here.
       </p>
     </main>
+  );
+}
+
+type EditorRow = { email: string; removable: boolean; isYou: boolean };
+
+function Editors() {
+  const [rows, setRows] = useState<EditorRow[] | null>(null);
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [created, setCreated] = useState<{
+    email: string;
+    password: string;
+    qr: string;
+  } | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch('/api/admin/editors');
+    if (!res.ok) return setRows([]);
+    const b = await res.json();
+    setRows(b.editors ?? []);
+  }, []);
+
+  useEffect(() => {
+    let off = false;
+    (async () => {
+      const res = await fetch('/api/admin/editors');
+      const b = res.ok ? await res.json() : { editors: [] };
+      if (!off) setRows(b.editors ?? []);
+    })();
+    return () => {
+      off = true;
+    };
+  }, []);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/editors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCreated({ email: b.email, password: b.password, qr: b.qr });
+        setEmail('');
+        await load();
+      } else {
+        setErr(
+          b.error === 'already_exists'
+            ? 'That person is already an editor.'
+            : b.error === 'invalid_email'
+              ? 'That does not look like an email address.'
+              : b.error === 'store_unavailable'
+                ? 'Storage is unreachable. Try again in a moment.'
+                : 'Could not add that editor.'
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(target: string) {
+    if (!window.confirm(`Remove ${target}? They will lose access immediately.`))
+      return;
+    const res = await fetch('/api/admin/editors', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: target }),
+    });
+    if (res.ok) await load();
+    else {
+      const b = await res.json().catch(() => ({}));
+      setErr(
+        b.error === 'env_editor'
+          ? 'That editor is set in Vercel and must be removed there.'
+          : 'Could not remove that editor.'
+      );
+    }
+  }
+
+  return (
+    <section className="admin-section">
+      <h2>Who can edit</h2>
+      <p className="admin-muted">
+        Everyone here can change the site. Adding someone gives them a password
+        and a QR code to scan — shown once.
+      </p>
+
+      {rows === null ? (
+        <p className="admin-muted" style={{ marginTop: 14 }}>
+          Loading…
+        </p>
+      ) : (
+        <ul className="editors">
+          {rows.map((r) => (
+            <li key={r.email}>
+              <span className="ed-mail">
+                {r.email}
+                {r.isYou && <span className="ed-you">you</span>}
+                {!r.removable && <span className="ed-env">in Vercel</span>}
+              </span>
+              {r.removable && !r.isYou && (
+                <button
+                  className="admin-remove"
+                  onClick={() => remove(r.email)}
+                >
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {created && (
+        <div className="ed-new">
+          <h3>Give these to {created.email}</h3>
+          <p className="admin-muted">
+            Shown once. Have them scan the code with Google Authenticator, Authy
+            or their phone&apos;s password app, and save the password somewhere
+            safe.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={created.qr} alt="Authenticator setup code" width={200} height={200} />
+          <code className="ed-pass">{created.password}</code>
+          <button className="admin-add" onClick={() => setCreated(null)}>
+            Done — I have shared these
+          </button>
+        </div>
+      )}
+
+      {err && <p className="admin-error">{err}</p>}
+
+      <form onSubmit={add} className="ed-add">
+        <input
+          type="email"
+          placeholder="their@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <button className="admin-add" type="submit" disabled={busy || !email}>
+          {busy ? 'Adding…' : 'Add editor'}
+        </button>
+      </form>
+    </section>
   );
 }
 

@@ -1,60 +1,121 @@
 import 'server-only';
 import { get, put } from '@vercel/blob';
 import { blobConfigured } from './contentStore';
+import { adminUsers, type AdminUser } from './adminAuth';
 
 /**
- * Password overrides.
+ * The editor list, stored outside the environment.
  *
- * ADMIN_USERS is an environment variable, so the app cannot rewrite it — a
- * password changed at runtime has nowhere to live. This document holds a
- * replacement hash per editor, layered over the env entry at sign-in.
+ * ADMIN_USERS is an environment variable, so anything the app changes at
+ * runtime — a new password, a new editor — has nowhere to live and forces a
+ * Vercel edit plus a redeploy. This document holds those changes instead.
  *
- * ADMIN_USERS remains authoritative for *who* may sign in and for the TOTP
- * secret. Removing someone there still revokes them, override or not.
+ * Resolution: an entry here wins over the environment entry with the same
+ * address, and an entry here with no environment counterpart is simply an
+ * additional editor. Environment entries always remain valid, which makes
+ * ADMIN_USERS the break-glass route if this document is ever lost or an
+ * account is locked out.
  */
 const PATHNAME = 'admin-credentials.json';
 
-export type Override = { salt: string; hash: string; changedAt: number };
-export type Overrides = Record<string, Override>;
+export type StoredEditor = {
+  salt: string;
+  hash: string;
+  /** Present only for editors added in-app; env editors keep their own. */
+  totp?: string;
+  changedAt: number;
+  addedBy?: string;
+};
+
+export type Stored = Record<string, StoredEditor>;
+
+/** An editor as the rest of the app sees them, from either source. */
+export type ResolvedEditor = AdminUser & {
+  source: 'env' | 'stored';
+  removable: boolean;
+};
 
 export class CredentialStoreUnavailable extends Error {}
 
-/**
- * Returns the overrides, or an empty set if none have ever been written.
- *
- * Throws when the store cannot be reached. Callers must fail closed on that:
- * treating an unreadable store as "no overrides" would quietly re-accept a
- * password the user had already replaced.
- */
-export async function readOverrides(): Promise<Overrides> {
-  // No store means no override can ever have been written, so the environment
-  // credentials are still the whole truth. Only a store that exists and cannot
-  // be reached is dangerous to ignore.
+export async function readStored(): Promise<Stored> {
+  // No store means nothing can have been written, so the environment list is
+  // still the whole truth. Only a store that exists and cannot be read is
+  // dangerous to treat as empty.
   if (!blobConfigured()) return {};
 
   try {
     const found = await get(PATHNAME, { access: 'private' });
-    if (!found) return {};
-    if (found.statusCode !== 200 || !found.stream) return {};
-    const text = await new Response(found.stream).text();
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed === 'object' ? (parsed as Overrides) : {};
+    if (!found || found.statusCode !== 200 || !found.stream) return {};
+    const parsed = JSON.parse(await new Response(found.stream).text());
+    return parsed && typeof parsed === 'object' ? (parsed as Stored) : {};
   } catch (err) {
-    console.error('[credentials] override read failed', err);
-    throw new CredentialStoreUnavailable('cannot read credential overrides');
+    console.error('[credentials] read failed', err);
+    throw new CredentialStoreUnavailable('cannot read editor store');
   }
 }
 
-export async function writeOverride(
-  email: string,
-  override: Override
-): Promise<void> {
-  const current = await readOverrides();
-  const next: Overrides = { ...current, [email.toLowerCase()]: override };
+async function writeStored(next: Stored): Promise<void> {
   await put(PATHNAME, JSON.stringify(next, null, 2), {
     access: 'private',
     contentType: 'application/json',
     allowOverwrite: true,
     cacheControlMaxAge: 0,
   });
+}
+
+/**
+ * Everyone who may sign in, from both sources.
+ *
+ * A stored entry overrides the environment entry with the same address; a
+ * stored entry with no counterpart is an extra editor. Environment editors are
+ * marked unremovable, because deleting them here would not revoke them.
+ */
+export async function resolveEditors(): Promise<ResolvedEditor[]> {
+  const stored = await readStored();
+  const env = adminUsers();
+  const byEmail = new Map<string, ResolvedEditor>();
+
+  for (const u of env) {
+    const email = u.email.toLowerCase();
+    const s = stored[email];
+    byEmail.set(email, {
+      email: u.email,
+      salt: s?.salt ?? u.salt,
+      hash: s?.hash ?? u.hash,
+      totp: s?.totp ?? u.totp,
+      source: 'env',
+      removable: false,
+    });
+  }
+
+  for (const [email, s] of Object.entries(stored)) {
+    if (byEmail.has(email)) continue;
+    // Without a TOTP secret there is no second factor, so such an entry is
+    // unusable and is skipped rather than silently weakening sign-in.
+    if (!s.totp) continue;
+    byEmail.set(email, {
+      email,
+      salt: s.salt,
+      hash: s.hash,
+      totp: s.totp,
+      source: 'stored',
+      removable: true,
+    });
+  }
+
+  return [...byEmail.values()];
+}
+
+export async function upsertEditor(
+  email: string,
+  entry: StoredEditor
+): Promise<void> {
+  const current = await readStored();
+  await writeStored({ ...current, [email.toLowerCase()]: entry });
+}
+
+export async function removeEditor(email: string): Promise<void> {
+  const current = await readStored();
+  delete current[email.toLowerCase()];
+  await writeStored(current);
 }

@@ -1192,3 +1192,79 @@ a.ghost:hover {
 .pw-actions .admin-add {
   margin-top: 0;
 }
+
+/* ---- editors ---- */
+.editors {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.editors li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #0b0e14;
+  border: 1px solid #1c2230;
+  border-radius: 9px;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  flex-wrap: wrap;
+}
+
+.ed-mail { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.ed-you,
+.ed-env {
+  font-size: 9.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.ed-you { background: #14304f; color: #7dd3fc; }
+.ed-env { background: #1c2230; color: #7b8494; }
+
+.ed-add {
+  display: flex;
+  gap: 9px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.ed-add input { flex: 1; min-width: 190px; }
+.ed-add .admin-add { margin-top: 0; white-space: nowrap; }
+
+.ed-new {
+  margin-top: 16px;
+  background: #0b0e14;
+  border: 1px solid #16a34a;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  align-items: flex-start;
+}
+
+.ed-new h3 { font-size: 14.5px; }
+.ed-new img { border-radius: 8px; background: #fff; padding: 8px; }
+
+.ed-pass {
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  letter-spacing: .04em;
+  background: #131824;
+  border: 1px solid #232b3a;
+  border-radius: 8px;
+  padding: 9px 13px;
+  color: #e6e8eb;
+  user-select: all;
+  word-break: break-all;
+}
+
+.ed-new .admin-add { margin-top: 0; }

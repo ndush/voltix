@@ -105,15 +105,23 @@ not enough.
 
 ### Adding an editor
 
-```bash
-npm run admin:user
-```
+From **/admin → Who can edit**: type their email, press **Add editor**. The
+page shows a password and a QR code once — share both, then dismiss. No Vercel
+edit, no redeploy.
 
-It asks for an email and password (or generates a strong one), then prints an
-enrolment QR code in the terminal and the JSON entry for `ADMIN_USERS`. The
-password and the TOTP secret are shown once and stored nowhere — only the
-scrypt hash reaches the environment, so the variable itself is not a usable
-credential. For several editors, put every entry in the same JSON array.
+`npm run admin:user` still exists for the very first editor, before anyone can
+sign in to add others. It prints a QR code and the JSON entry for
+`ADMIN_USERS`.
+
+### Where editors live
+
+`ADMIN_USERS` holds the bootstrap editors and is the break-glass route: those
+entries always work and cannot be removed from the UI, so losing the store or
+locking an account out is recoverable through Vercel.
+
+Everyone else lives in the Blob document, added and removed in-app. A stored
+entry with the same address as an environment entry wins, which is how a
+changed password persists without touching Vercel.
 
 ### How it is put together
 

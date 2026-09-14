@@ -10,12 +10,11 @@ import {
 import { checkLocked, recordFailure, recordSuccess } from '@/app/lib/rateLimit';
 import {
   CredentialStoreUnavailable,
-  readOverrides,
+  resolveEditors,
 } from '@/app/lib/credentialStore';
 
 export async function POST(req: NextRequest) {
-  const users = adminUsers();
-  if (users.length === 0 || !process.env.SESSION_SECRET) {
+  if (adminUsers().length === 0 || !process.env.SESSION_SECRET) {
     console.error('[admin/login] ADMIN_USERS or SESSION_SECRET is not set');
     return NextResponse.json({ error: 'not_configured' }, { status: 503 });
   }
@@ -46,14 +45,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const user = users.find((u) => u.email.toLowerCase() === email);
-
-  // A password changed in /admin lives in Blob, not in ADMIN_USERS. Fail
-  // closed if that document cannot be read: treating it as absent would
-  // re-accept a password the user had already replaced.
-  let overrides;
+  // Editors come from the environment and from the store; a stored entry wins.
+  // Fail closed if the store exists but cannot be read, since treating it as
+  // empty would re-accept a password the editor had already replaced.
+  let editors;
   try {
-    overrides = await readOverrides();
+    editors = await resolveEditors();
   } catch (err) {
     if (err instanceof CredentialStoreUnavailable) {
       return NextResponse.json({ error: 'store_unavailable' }, { status: 503 });
@@ -61,16 +58,15 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  const override = user ? overrides[user.email.toLowerCase()] : undefined;
-  const salt = override?.salt ?? user?.salt;
-  const hash = override?.hash ?? user?.hash;
+  const user = editors.find((u) => u.email.toLowerCase() === email);
 
   // Verify against a decoy when the address is unknown, so a wrong email and a
   // wrong password cost the same time and are indistinguishable.
   const DECOY_SALT = '00'.repeat(16);
   const DECOY_HASH = '00'.repeat(64);
   const passwordOk =
-    verifyPassword(password, salt ?? DECOY_SALT, hash ?? DECOY_HASH) && !!user;
+    verifyPassword(password, user?.salt ?? DECOY_SALT, user?.hash ?? DECOY_HASH) &&
+    !!user;
   const totpOk = !!user && verifyTotp(user.email, user.totp, code);
 
   if (!passwordOk || !totpOk) {

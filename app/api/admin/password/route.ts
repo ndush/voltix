@@ -1,7 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import {
-  adminUsers,
   hashPassword,
   readSession,
   SESSION_COOKIE,
@@ -10,8 +9,8 @@ import {
 } from '@/app/lib/adminAuth';
 import {
   CredentialStoreUnavailable,
-  readOverrides,
-  writeOverride,
+  resolveEditors,
+  upsertEditor,
 } from '@/app/lib/credentialStore';
 
 const MIN_LENGTH = 12;
@@ -41,30 +40,25 @@ export async function POST(req: NextRequest) {
   if (next === current)
     return NextResponse.json({ error: 'unchanged' }, { status: 400 });
 
-  const user = adminUsers().find(
-    (u) => u.email.toLowerCase() === email.toLowerCase()
-  );
-  if (!user)
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-
-  let overrides;
+  let editors;
   try {
-    overrides = await readOverrides();
+    editors = await resolveEditors();
   } catch (err) {
     if (err instanceof CredentialStoreUnavailable)
       return NextResponse.json({ error: 'store_unavailable' }, { status: 503 });
     throw err;
   }
 
+  const user = editors.find(
+    (u) => u.email.toLowerCase() === email.toLowerCase()
+  );
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
   // Re-authenticate before changing the credential. Holding a session is not
   // enough: an unattended browser would otherwise be enough to lock the real
   // owner out of their own account.
-  const existing = overrides[user.email.toLowerCase()];
-  const okCurrent = verifyPassword(
-    current,
-    existing?.salt ?? user.salt,
-    existing?.hash ?? user.hash
-  );
+  const okCurrent = verifyPassword(current, user.salt, user.hash);
   const okCode = verifyTotp(user.email, user.totp, code);
 
   if (!okCurrent || !okCode) {
@@ -77,7 +71,14 @@ export async function POST(req: NextRequest) {
 
   const { salt, hash } = hashPassword(next);
   try {
-    await writeOverride(user.email, { salt, hash, changedAt: Date.now() });
+    // Carry the TOTP secret for a stored editor; an env editor keeps theirs
+    // in the environment, so it is left off here.
+    await upsertEditor(user.email, {
+      salt,
+      hash,
+      totp: user.source === 'stored' ? user.totp : undefined,
+      changedAt: Date.now(),
+    });
   } catch (err) {
     console.error(`[admin/password] write failed for ${user.email}`, err);
     return NextResponse.json({ error: 'write_failed' }, { status: 502 });
