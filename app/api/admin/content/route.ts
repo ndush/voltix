@@ -2,24 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { readSession, SESSION_COOKIE } from '@/app/lib/adminAuth';
 import { cookies } from 'next/headers';
 import type { SiteContent } from '@/app/lib/content';
-
-const CONTENT_PATH = 'content/site.json';
-
-function ghConfig() {
-  const repo = process.env.GITHUB_REPO;
-  const token = process.env.GITHUB_TOKEN;
-  const branch = process.env.GITHUB_BRANCH || 'main';
-  if (!repo || !token) return null;
-  return { repo, token, branch };
-}
-
-function gh(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
-}
+import { blobConfigured, readContent, writeContent } from '@/app/lib/contentStore';
 
 /**
  * The editor's email.
@@ -103,31 +86,13 @@ export async function GET() {
   if (!editor)
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const cfg = ghConfig();
-  if (!cfg)
-    return NextResponse.json({ error: 'github_not_configured' }, { status: 503 });
+  if (!blobConfigured())
+    return NextResponse.json({ error: 'blob_not_configured' }, { status: 503 });
 
-  const res = await fetch(
-    `https://api.github.com/repos/${cfg.repo}/contents/${CONTENT_PATH}?ref=${cfg.branch}`,
-    { headers: gh(cfg.token), cache: 'no-store' }
-  );
-
-  if (!res.ok) {
-    const body = await res.text();
-    console.error(`[admin/content] read ${res.status}: ${body.slice(0, 300)}`);
-    return NextResponse.json(
-      { error: 'read_failed', status: res.status },
-      { status: 502 }
-    );
-  }
-
-  const file = await res.json();
-  const decoded = Buffer.from(file.content, 'base64').toString('utf8');
-  return NextResponse.json({
-    content: JSON.parse(decoded),
-    sha: file.sha,
-    editor,
-  });
+  const { content, source } = await readContent();
+  // `source` tells the editor whether they are looking at saved content or the
+  // copy that shipped with the build, which is otherwise indistinguishable.
+  return NextResponse.json({ content, source, editor });
 }
 
 export async function PUT(req: NextRequest) {
@@ -135,11 +100,10 @@ export async function PUT(req: NextRequest) {
   if (!editor)
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const cfg = ghConfig();
-  if (!cfg)
-    return NextResponse.json({ error: 'github_not_configured' }, { status: 503 });
+  if (!blobConfigured())
+    return NextResponse.json({ error: 'blob_not_configured' }, { status: 503 });
 
-  let payload: { content?: unknown; sha?: string };
+  let payload: { content?: unknown };
   try {
     payload = await req.json();
   } catch {
@@ -153,42 +117,13 @@ export async function PUT(req: NextRequest) {
       { status: 400 }
     );
 
-  if (!payload.sha)
-    return NextResponse.json({ error: 'sha_required' }, { status: 400 });
-
-  const body = JSON.stringify(checked.value, null, 2) + '\n';
-
-  const res = await fetch(
-    `https://api.github.com/repos/${cfg.repo}/contents/${CONTENT_PATH}`,
-    {
-      method: 'PUT',
-      headers: { ...gh(cfg.token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        // Attribute the commit to whoever signed in, so the repository
-        // history is a real audit trail rather than one shared identity.
-        message: `Update site content from admin (${editor})`,
-        author: { name: editor.split('@')[0], email: editor },
-        content: Buffer.from(body, 'utf8').toString('base64'),
-        // Passing the sha we read makes this a compare-and-set: a concurrent
-        // edit is rejected rather than silently overwritten.
-        sha: payload.sha,
-        branch: cfg.branch,
-      }),
-    }
-  );
-
-  if (res.status === 409)
-    return NextResponse.json({ error: 'conflict' }, { status: 409 });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`[admin/content] write ${res.status}: ${text.slice(0, 300)}`);
-    return NextResponse.json(
-      { error: 'write_failed', status: res.status },
-      { status: 502 }
-    );
+  try {
+    await writeContent(checked.value);
+  } catch (err) {
+    console.error(`[admin/content] write failed for ${editor}`, err);
+    return NextResponse.json({ error: 'write_failed' }, { status: 502 });
   }
 
-  const out = await res.json();
-  return NextResponse.json({ ok: true, sha: out.content?.sha });
+  console.log(`[admin/content] saved by ${editor}`);
+  return NextResponse.json({ ok: true });
 }

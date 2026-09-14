@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { affiliateTokenOrThrow, resolveAffiliateToken } from '@/app/lib/affiliate';
-import { CAMPAIGNS, getCampaign } from '@/app/lib/content';
+import { pickCampaign } from '@/app/lib/content';
+import { readContent } from '@/app/lib/contentStore';
 
 export async function GET(req: NextRequest) {
   // Generate PKCE code_verifier and code_challenge
@@ -18,8 +19,9 @@ export async function GET(req: NextRequest) {
   // flow through to Deriv so signups can be told apart in the partner
   // dashboard, and it may carry its own affiliate token.
   const campaignKey = req.nextUrl.searchParams.get('c');
-  const campaign = getCampaign(campaignKey);
-  const isNamedCampaign = !!campaignKey && campaignKey in CAMPAIGNS;
+  const { content } = await readContent();
+  const campaign = pickCampaign(content, campaignKey);
+  const isNamedCampaign = !!campaignKey && campaignKey in content.campaigns;
   const affiliateToken =
     resolveAffiliateToken(campaign.affiliateToken) ?? affiliateTokenOrThrow();
 

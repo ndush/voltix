@@ -44,11 +44,11 @@ many as you like and run them side by side.
 
 ## Saving
 
-Press **Save changes**. The site rebuilds and your change is live in about a
-minute. Reload the home page to see it.
+Press **Save changes**. Reload the home page and your change is already there —
+there is no waiting for a rebuild.
 
-If someone else edited the content while you had the page open, the save is
-refused rather than overwriting their work. Reload and make your change again.
+If two people save at once the later save wins, so agree who is editing before
+you both start.
 
 ## What you cannot change here
 
@@ -59,28 +59,34 @@ disclosures, not marketing copy.
 
 # For the developer
 
-Content lives in `content/site.json`. The admin page reads and writes it
-through the GitHub Contents API, so every change is an ordinary commit: full
-history, blame, and one-click revert, with no database.
+Live content is a single JSON document in **Vercel Blob**, read on every
+request and written by `/admin`. Saves take effect immediately; there is no
+deploy in the write path.
 
-Saves are compare-and-set on the file SHA, so a concurrent edit returns 409
-instead of clobbering. `app/api/admin/content/route.ts` validates the payload
-shape and length before writing, and constrains market symbols and campaign
-keys with a pattern, since both reach other systems.
+`content/site.json` is committed as the fallback. It ships with the build and
+is served when nothing has been saved yet, or if Blob is unreachable — so a
+storage outage degrades to slightly stale copy rather than a broken site.
+
+Trade-off taken deliberately: instant saves in exchange for version history.
+There is no `git log` of content changes and no one-click revert, so a bad edit
+is fixed by editing again. Every save is logged with the editor's address, and
+`app/api/admin/content/route.ts` validates shape and length before writing,
+constraining market symbols and campaign keys by pattern since both reach other
+systems.
+
+### Connecting the store
+
+Vercel dashboard → **Storage** → **Create** → **Blob**, connect it to the
+project, then redeploy. Vercel injects `BLOB_READ_WRITE_TOKEN` itself; there is
+no token to create, paste, or renew.
 
 ## Required environment variables
 
 | Variable | Purpose |
 | --- | --- |
 | `ADMIN_USERS` | JSON array of editors. Generate with `npm run admin:user`. |
-| `GITHUB_REPO` | `ndush/voltix` |
-| `GITHUB_TOKEN` | Fine-grained PAT, **Contents: Read and write**, scoped to this repository only |
+| `BLOB_READ_WRITE_TOKEN` | Added automatically when you connect a Blob store. Do not set by hand. |
 | `GITHUB_BRANCH` | Optional, defaults to `main` |
-
-Create the token at **GitHub → Settings → Developer settings → Personal access
-tokens → Fine-grained tokens**. Give it access to `ndush/voltix` alone and the
-single **Contents** permission. It can commit to this repository, so treat it
-as a credential: it belongs in Vercel's environment variables and nowhere else.
 
 ## Admin access
 

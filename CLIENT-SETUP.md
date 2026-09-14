@@ -40,17 +40,18 @@ Later, to pull in a fix you made to the template:
 git pull upstream main
 ```
 
-Only `content/site.json` diverges between forks, so merges stay clean as long
-as you avoid editing that file in the template.
+Nothing diverges between forks except what you deliberately change — live
+content lives in each project's own Blob store, not in the repository — so
+`git pull upstream main` stays conflict-free.
 
 ## 2. Create the Vercel project
 
 Import the fork at vercel.com/new. Framework detects as Next.js; leave the
 build settings alone. Deploy once to get the URL — you need it for step 3.
 
-If the fork is private, the client cannot edit content on the Hobby plan: their
-commits are refused as a second contributor. Either make the fork public or put
-that project on Pro.
+The fork can be private. Content edits go to Blob rather than to git, so the
+client never commits anything and the Hobby plan's single-contributor limit
+never applies.
 
 ## 3. Register the client's Deriv app
 
@@ -76,15 +77,13 @@ Use their email. It prints a QR code and the JSON entry. Show them the QR in
 person or on a screen share — not over WhatsApp. Add your own entry to the same
 array if you want to be able to support them.
 
-## 5. Create a GitHub token for their fork
+## 5. Connect a Blob store
 
-github.com/settings/personal-access-tokens/new
+Vercel dashboard → **Storage** → **Create** → **Blob**, connected to their
+project. Vercel injects `BLOB_READ_WRITE_TOKEN` itself — there is nothing to
+create or paste, and nothing that expires.
 
-- Repository access: **Only select repositories** → their fork
-- Permissions: **Contents · Read and write**, nothing else
-
-One token per fork. A token scoped to one client's repository cannot touch
-another's.
+Each project gets its own store, so one client's content cannot reach another's.
 
 ## 6. Environment variables
 
@@ -99,9 +98,7 @@ another's.
 | `NEXT_PUBLIC_BASE_URL` | Their Vercel URL, or their domain once they buy one |
 | `SESSION_SECRET` | `openssl rand -base64 32` — a fresh one per client |
 | `ADMIN_USERS` | From step 4 |
-| `GITHUB_REPO` | `ndush/voltix-<client>` |
-| `GITHUB_BRANCH` | `main` |
-| `GITHUB_TOKEN` | From step 5 |
+| `BLOB_READ_WRITE_TOKEN` | Added automatically by step 5 — do not set by hand |
 
 Never reuse `SESSION_SECRET` between clients. It signs admin sessions, so a
 shared value would let a session from one instance be replayed against another.
@@ -141,8 +138,7 @@ further than that is a code change in the fork:
 
 ## When one repository stops being enough
 
-Past a handful of clients, maintaining separate forks gets tedious. At that
-point the better shape is one repository, one deployment per client, and a
-`GITHUB_CONTENT_PATH` environment variable pointing each deployment at its own
-content file. That needs a small refactor — `app/lib/content.ts` currently
-imports the JSON statically — so it is not worth doing before you need it.
+Because content now lives per-project in Blob rather than in the repository,
+forking is no longer required to keep clients separate. One repository and one
+Vercel project per client works, and every client picks up your fixes on their
+next deploy. Fork only when a client wants to own the code outright.

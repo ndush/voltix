@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MARKETS } from '../lib/content';
+import type { Market } from '../lib/content';
 
 type Quote = { price: number; dir: 'up' | 'down' | null };
 
@@ -9,7 +9,7 @@ type Quote = { price: number; dir: 'up' | 'down' | null };
  * Live prices for the landing page. Kept as its own client component so the
  * marketing copy around it stays server-rendered and indexable.
  */
-export function MarketTicker() {
+export function MarketTicker({ markets }: { markets: Market[] }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const last = useRef<Record<string, number>>({});
 
@@ -18,7 +18,7 @@ export function MarketTicker() {
       'wss://api.derivws.com/trading/v1/options/ws/public'
     );
     ws.onopen = () => {
-      for (const m of MARKETS) {
+      for (const m of markets) {
         ws.send(JSON.stringify({ ticks: m.symbol, subscribe: 1 }));
       }
     };
@@ -43,11 +43,11 @@ export function MarketTicker() {
       }));
     };
     return () => ws.close();
-  }, []);
+  }, [markets]);
 
   return (
     <section id="markets" className="markets">
-      {MARKETS.map((m) => {
+      {markets.map((m) => {
         const q = quotes[m.symbol];
         return (
           <div key={m.symbol} className="card">

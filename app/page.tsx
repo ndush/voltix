@@ -1,7 +1,8 @@
 import { RiskWarning, SiteFooter } from './components/SiteFooter';
 import { MarketTicker } from './components/MarketTicker';
 import { LoginButton } from './components/LoginButton';
-import { BRAND, CAMPAIGNS, FEATURES, getCampaign } from './lib/content';
+import { pickCampaign } from './lib/content';
+import { readContent } from './lib/contentStore';
 
 // Server component: campaign copy is rendered on the server so it appears in
 // the HTML for search engines, social previews and visitors without
@@ -13,8 +14,12 @@ export default async function Home({
 }) {
   const raw = (await searchParams).c;
   const key = Array.isArray(raw) ? raw[0] : raw;
-  const campaignKey = key && key in CAMPAIGNS ? key : undefined;
-  const campaign = getCampaign(campaignKey);
+
+  // Read on every request: an edit in /admin should be visible immediately,
+  // which is the reason content lives in Blob rather than in the build.
+  const { content } = await readContent();
+  const campaignKey = key && key in content.campaigns ? key : undefined;
+  const campaign = pickCampaign(content, campaignKey);
 
   return (
     <main className="landing">
@@ -23,7 +28,7 @@ export default async function Home({
       ) : null}
 
       <header className="nav">
-        <div className="logo">{BRAND}</div>
+        <div className="logo">{content.brand}</div>
         <nav>
           <a href="#markets">Markets</a>
           <LoginButton campaignKey={campaignKey} label="Login with Deriv" />
@@ -43,10 +48,10 @@ export default async function Home({
         </p>
       </section>
 
-      <MarketTicker />
+      <MarketTicker markets={content.markets} />
 
       <section className="features">
-        {FEATURES.map((f) => (
+        {content.features.map((f) => (
           <div key={f.title} className="feature">
             <h3>{f.title}</h3>
             <p>{f.body}</p>

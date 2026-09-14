@@ -1,11 +1,10 @@
 import data from '@/content/site.json';
 
 /**
- * Marketing content.
+ * Marketing content types, and the copy that ships with the build.
  *
- * The values live in `content/site.json`, not here, so the admin page at
- * /admin can rewrite them through a form without generating TypeScript. This
- * file only supplies the types and the lookup helper.
+ * Live content is stored in Vercel Blob and read per request; see
+ * `contentStore.ts`. This file holds only the shape and the fallback.
  *
  * The risk warning and the legal pages are deliberately NOT editable content.
  * They are required disclosures.
@@ -33,16 +32,18 @@ export type SiteContent = {
   campaigns: Record<string, Campaign>;
 };
 
-export const CONTENT = data as SiteContent;
-
-export const BRAND = CONTENT.brand;
-export const MARKETS = CONTENT.markets;
-export const FEATURES = CONTENT.features;
-export const DEFAULT_CAMPAIGN = CONTENT.defaultCampaign;
-export const CAMPAIGNS = CONTENT.campaigns;
+/**
+ * The copy committed to the repository. Used as the fallback when nothing has
+ * been saved yet, or when Blob cannot be reached — never as the live source,
+ * which would make edits invisible until the next deploy.
+ */
+export const BUNDLED = data as SiteContent;
 
 /** Picks the campaign for a ?c= value, falling back to the default. */
-export function getCampaign(key: string | null | undefined): Campaign {
-  if (!key) return DEFAULT_CAMPAIGN;
-  return CAMPAIGNS[key] ?? DEFAULT_CAMPAIGN;
+export function pickCampaign(
+  content: SiteContent,
+  key: string | null | undefined
+): Campaign {
+  if (!key) return content.defaultCampaign;
+  return content.campaigns[key] ?? content.defaultCampaign;
 }

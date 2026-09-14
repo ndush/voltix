@@ -12,7 +12,7 @@ export default function Admin() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [content, setContent] = useState<SiteContent | null>(null);
-  const [sha, setSha] = useState<string | null>(null);
+  const [source, setSource] = useState<'blob' | 'fallback' | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   // Fetch is separated from the state update so the effect never calls
@@ -25,15 +25,15 @@ export default function Admin() {
       return {
         authed: true as const,
         error:
-          body.error === 'github_not_configured'
-            ? 'GITHUB_REPO and GITHUB_TOKEN are not set in Vercel.'
+          body.error === 'blob_not_configured'
+            ? 'No Blob store is connected. Create one in Vercel under Storage, then redeploy.'
             : `Could not load content (${body.error}).`,
       };
     }
     return {
       authed: true as const,
       content: body.content as SiteContent,
-      sha: body.sha as string,
+      source: body.source as 'blob' | 'fallback',
       editor: body.editor as string,
     };
   }, []);
@@ -48,7 +48,7 @@ export default function Admin() {
       }
       if ('content' in r && r.content) {
         setContent(r.content);
-        setSha(r.sha ?? null);
+        setSource(r.source ?? null);
         setEditor(r.editor ?? null);
       }
     },
@@ -67,26 +67,17 @@ export default function Admin() {
   }, [apply, fetchContent]);
 
   async function save() {
-    if (!content || !sha) return;
+    if (!content) return;
     setStatus({ kind: 'saving' });
     const res = await fetch('/api/admin/content', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, sha }),
+      body: JSON.stringify({ content }),
     });
     const body = await res.json().catch(() => ({}));
     if (res.ok) {
-      setSha(body.sha ?? null);
-      setStatus({
-        kind: 'saved',
-        message: 'Saved. The site rebuilds and goes live in about a minute.',
-      });
-    } else if (res.status === 409) {
-      setStatus({
-        kind: 'error',
-        message:
-          'Someone else changed the content while you were editing. Reload to get their version.',
-      });
+      setSource('blob');
+      setStatus({ kind: 'saved', message: 'Saved. The site is live now.' });
     } else {
       setStatus({
         kind: 'error',
@@ -236,6 +227,13 @@ export default function Admin() {
           </button>
         </div>
       </header>
+
+      {source === 'fallback' && !status.message && (
+        <p className="admin-muted">
+          Showing the copy that ships with the site. Nothing has been saved here
+          yet — your first save becomes the live version.
+        </p>
+      )}
 
       {status.message && (
         <p
