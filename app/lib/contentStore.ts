@@ -30,7 +30,7 @@ export async function readContent(): Promise<{
   if (!blobConfigured()) return { content: FALLBACK, source: 'fallback' };
 
   try {
-    const found = await get(PATHNAME, { access: 'public' });
+    const found = await get(PATHNAME, { access: 'private' });
     // Null means nothing has been saved yet, which is the normal state on a
     // fresh deployment rather than an error.
     if (!found || found.statusCode !== 200 || !found.stream) {
@@ -48,7 +48,10 @@ export async function readContent(): Promise<{
 
 export async function writeContent(content: SiteContent): Promise<void> {
   await put(PATHNAME, JSON.stringify(content, null, 2), {
-    access: 'public',
+    // Private: only this app's server reads the document, so there is no
+    // reason to expose it on a public URL. Campaigns may carry their own
+    // affiliate token, which does not belong in a publicly fetchable file.
+    access: 'private',
     contentType: 'application/json',
     allowOverwrite: true,
     // The page reads this on every request, so a cached copy would defeat the
