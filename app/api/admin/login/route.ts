@@ -8,6 +8,10 @@ import {
   verifyTotp,
 } from '@/app/lib/adminAuth';
 import { checkLocked, recordFailure, recordSuccess } from '@/app/lib/rateLimit';
+import {
+  CredentialStoreUnavailable,
+  readOverrides,
+} from '@/app/lib/credentialStore';
 
 export async function POST(req: NextRequest) {
   const users = adminUsers();
@@ -44,13 +48,29 @@ export async function POST(req: NextRequest) {
 
   const user = users.find((u) => u.email.toLowerCase() === email);
 
+  // A password changed in /admin lives in Blob, not in ADMIN_USERS. Fail
+  // closed if that document cannot be read: treating it as absent would
+  // re-accept a password the user had already replaced.
+  let overrides;
+  try {
+    overrides = await readOverrides();
+  } catch (err) {
+    if (err instanceof CredentialStoreUnavailable) {
+      return NextResponse.json({ error: 'store_unavailable' }, { status: 503 });
+    }
+    throw err;
+  }
+
+  const override = user ? overrides[user.email.toLowerCase()] : undefined;
+  const salt = override?.salt ?? user?.salt;
+  const hash = override?.hash ?? user?.hash;
+
   // Verify against a decoy when the address is unknown, so a wrong email and a
   // wrong password cost the same time and are indistinguishable.
   const DECOY_SALT = '00'.repeat(16);
   const DECOY_HASH = '00'.repeat(64);
   const passwordOk =
-    verifyPassword(password, user?.salt ?? DECOY_SALT, user?.hash ?? DECOY_HASH) &&
-    !!user;
+    verifyPassword(password, salt ?? DECOY_SALT, hash ?? DECOY_HASH) && !!user;
   const totpOk = !!user && verifyTotp(user.email, user.totp, code);
 
   if (!passwordOk || !totpOk) {

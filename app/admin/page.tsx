@@ -395,11 +395,164 @@ export default function Admin() {
         </button>
       </section>
 
+      <ChangePassword />
+
       <p className="admin-foot">
         The risk warning, Terms and Privacy pages are required disclosures and
         are not editable here.
       </p>
     </main>
+  );
+}
+
+function ChangePassword() {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ current: '', next: '', confirm: '', code: '' });
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+
+    if (form.next !== form.confirm) {
+      setMsg({ kind: 'err', text: 'The two new passwords do not match.' });
+      return;
+    }
+    if (form.next.length < 12) {
+      setMsg({ kind: 'err', text: 'Use at least 12 characters.' });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: form.current,
+          newPassword: form.next,
+          code: form.code,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setForm({ current: '', next: '', confirm: '', code: '' });
+        setMsg({
+          kind: 'ok',
+          text: 'Password changed. Use the new one next time you sign in.',
+        });
+      } else if (body.error === 'invalid_credentials') {
+        setMsg({
+          kind: 'err',
+          text: 'Current password or code is not correct.',
+        });
+      } else if (body.error === 'too_short') {
+        setMsg({ kind: 'err', text: 'Use at least 12 characters.' });
+      } else if (body.error === 'unchanged') {
+        setMsg({ kind: 'err', text: 'The new password is the same as the old one.' });
+      } else if (body.error === 'store_unavailable') {
+        setMsg({
+          kind: 'err',
+          text: 'Storage is unreachable right now. Try again in a moment.',
+        });
+      } else {
+        setMsg({ kind: 'err', text: 'Could not change the password.' });
+      }
+    } catch {
+      setMsg({ kind: 'err', text: 'Could not reach the server.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <section className="admin-section">
+        <h2>Your password</h2>
+        <p className="admin-muted">
+          Your 6-digit code stays the same — only the password changes.
+        </p>
+        <button className="admin-add" onClick={() => setOpen(true)}>
+          Change password
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="admin-section">
+      <h2>Change your password</h2>
+      <p className="admin-muted">
+        Confirm the password you use now and a fresh code from your phone. Your
+        6-digit code does not change.
+      </p>
+      <form onSubmit={submit}>
+        <label>
+          Current password
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={form.current}
+            onChange={(e) => setForm({ ...form, current: e.target.value })}
+          />
+        </label>
+        <label>
+          New password <span className="admin-muted">(12 characters or more)</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={form.next}
+            onChange={(e) => setForm({ ...form, next: e.target.value })}
+          />
+        </label>
+        <label>
+          New password again
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={form.confirm}
+            onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+          />
+        </label>
+        <label>
+          6-digit code
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="one-time-code"
+            value={form.code}
+            onChange={(e) =>
+              setForm({ ...form, code: e.target.value.replace(/\D/g, '') })
+            }
+          />
+        </label>
+
+        {msg && (
+          <p className={msg.kind === 'ok' ? 'admin-success' : 'admin-error'}>
+            {msg.text}
+          </p>
+        )}
+
+        <div className="pw-actions">
+          <button
+            type="button"
+            className="admin-add"
+            onClick={() => {
+              setOpen(false);
+              setMsg(null);
+              setForm({ current: '', next: '', confirm: '', code: '' });
+            }}
+          >
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={busy}>
+            {busy ? 'Changing…' : 'Change password'}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 

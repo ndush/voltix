@@ -959,3 +959,14 @@ a.logo {
 .google-btn:hover {
   background: #f5f6f7;
 }
+
+.pw-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.pw-actions .admin-add {
+  margin-top: 0;
+}

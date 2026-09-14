@@ -2,6 +2,15 @@
 
 You do not need GitHub, and you cannot break the site from here.
 
+## Changing your password
+
+In **/admin**, under **Your password**, choose **Change password**. You will
+need the password you use now and a fresh 6-digit code. Your code does not
+change — keep the same authenticator entry.
+
+Use at least 12 characters. If you forget it, the site owner regenerates one
+for you.
+
 ## Signing in
 
 Go to **/admin** and enter three things:
@@ -113,6 +122,15 @@ credential. For several editors, put every entry in the same JSON array.
   which reads `$9ebf...` as a variable name and substitutes nothing.
 - **TOTP**: standard 6-digit, 30-second codes, accepted one window either side
   to tolerate clock drift. Any authenticator app works; no provider account.
+- **Password changes**: `ADMIN_USERS` is an environment variable and cannot be
+  rewritten at runtime, so a changed password is stored as an override in Blob
+  and layered over the env entry at sign-in. `ADMIN_USERS` stays authoritative
+  for who may sign in and for the TOTP secret, so removing someone there still
+  revokes them. Changing a password requires the current password **and** a
+  fresh code, because holding a session is not proof of identity. If the store
+  exists but cannot be read, sign-in is refused rather than falling back to a
+  password the user may already have replaced; if no store is configured at
+  all, no override can exist and the env credentials are used.
 - **Session**: HMAC-signed cookie, `httpOnly`, `Secure`, `SameSite=Strict`,
   one hour. Membership is rechecked on every request, so removing someone from
   `ADMIN_USERS` cuts them off immediately rather than when their cookie lapses.
