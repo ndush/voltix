@@ -3,6 +3,11 @@ import { MarketTicker } from './components/MarketTicker';
 import { LoginButton } from './components/LoginButton';
 import { pickCampaign } from './lib/content';
 import { readContent } from './lib/contentStore';
+import {
+  affiliateTokenOrThrow,
+  resolveAffiliateToken,
+  signupUrl,
+} from './lib/affiliate';
 
 // Server component: campaign copy is rendered on the server so it appears in
 // the HTML for search engines, social previews and visitors without
@@ -21,6 +26,18 @@ export default async function Home({
   const campaignKey = key && key in content.campaigns ? key : undefined;
   const campaign = pickCampaign(content, campaignKey);
 
+  // Worked out here so the button is a real link the browser can follow
+  // instantly, rather than something that has to ask the server first.
+  const token =
+    resolveAffiliateToken(campaign.affiliateToken) ?? affiliateTokenOrThrow();
+  const href = signupUrl(
+    token,
+    campaignKey
+      ? campaign.utmCampaign
+      : process.env.DERIV_AFFILIATE_CAMPAIGN || campaign.utmCampaign,
+    campaign.utmSource
+  );
+
   return (
     <main className="landing">
       {campaign.banner ? (
@@ -33,7 +50,7 @@ export default async function Home({
           <a href="#markets">Markets</a>
           {/* Not "Login": nobody has an account yet, and implying one is
               needed turns away the newcomers this page exists to reach. */}
-          <LoginButton campaignKey={campaignKey} label="Get started" />
+          <LoginButton href={href} label="Get started" />
         </nav>
       </header>
 
@@ -41,7 +58,7 @@ export default async function Home({
         <h1>{campaign.headline}</h1>
         <p>{campaign.subhead}</p>
         <LoginButton
-          campaignKey={campaignKey}
+          href={href}
           label={campaign.cta}
           className="btn-primary big"
         />

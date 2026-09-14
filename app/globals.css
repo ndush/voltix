@@ -1440,3 +1440,10 @@ a.ghost:hover {
 .admin-row.dupe input {
   border-color: #78350f;
 }
+
+/* The call to action is a link, so it needs a button's shape explicitly. */
+a.btn-primary {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
