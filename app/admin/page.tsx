@@ -416,24 +416,34 @@ export default function Admin() {
           </p>
         )}
 
-        <button
-          className="admin-add"
-          onClick={() => {
-            // Default to a market that is not already listed, so pressing this
-            // twice does not quietly put the same one on the page twice.
-            const used = new Set(content.markets.map((m) => m.symbol));
-            const next =
-              SYMBOL_CHOICES.find((c) => !used.has(c.code)) ?? SYMBOL_CHOICES[0];
-            set({
-              markets: [
-                ...content.markets,
-                { symbol: next.code, name: next.label },
-              ],
-            });
-          }}
-        >
-          + Add market
-        </button>
+        {(() => {
+          const used = new Set(content.markets.map((m) => m.symbol));
+          const spare = SYMBOL_CHOICES.filter((c) => !used.has(c.code));
+          // There are only five of these, so once they are all listed a sixth
+          // row could only ever be a duplicate.
+          if (spare.length === 0) {
+            return (
+              <p className="admin-muted" style={{ marginTop: 15 }}>
+                All available markets are already on your page.
+              </p>
+            );
+          }
+          return (
+            <button
+              className="admin-add"
+              onClick={() =>
+                set({
+                  markets: [
+                    ...content.markets,
+                    { symbol: spare[0].code, name: spare[0].label },
+                  ],
+                })
+              }
+            >
+              + Add market
+            </button>
+          );
+        })()}
       </section>
 
       <section className="admin-section">
