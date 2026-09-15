@@ -69,6 +69,23 @@ export default async function Home({
 
       <MarketTicker markets={content.markets} />
 
+      {content.tradeTypes?.length ? (
+        <section className="tradetypes">
+          <h2>What you can trade on Deriv</h2>
+          <p className="tt-lead">
+            All of these run on the same round-the-clock synthetic indices.
+          </p>
+          <div className="tt-grid">
+            {content.tradeTypes.map((t) => (
+              <div key={t.name} className="tt">
+                <h3>{t.name}</h3>
+                <p>{t.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="features">
         {content.features.map((f) => (
           <div key={f.title} className="feature">

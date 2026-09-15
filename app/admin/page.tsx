@@ -376,6 +376,59 @@ export default function Admin() {
       </section>
 
       <section className="admin-section">
+        <h2>What you can trade</h2>
+        <p className="admin-muted">
+          The Deriv contract types listed on your page, so visitors recognise
+          what is on offer. They trade these on Deriv, not here.
+        </p>
+        {(content.tradeTypes ?? []).map((t, i) => (
+          <div className="admin-stack" key={i}>
+            <input
+              value={t.name}
+              placeholder="e.g. Even / Odd"
+              onChange={(e) => {
+                const tradeTypes = [...(content.tradeTypes ?? [])];
+                tradeTypes[i] = { ...t, name: e.target.value };
+                set({ tradeTypes });
+              }}
+            />
+            <textarea
+              value={t.body}
+              rows={2}
+              placeholder="One line explaining it"
+              onChange={(e) => {
+                const tradeTypes = [...(content.tradeTypes ?? [])];
+                tradeTypes[i] = { ...t, body: e.target.value };
+                set({ tradeTypes });
+              }}
+            />
+            <button
+              className="admin-remove"
+              onClick={() =>
+                set({
+                  tradeTypes: (content.tradeTypes ?? []).filter(
+                    (_, n) => n !== i
+                  ),
+                })
+              }
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          className="admin-add"
+          onClick={() =>
+            set({
+              tradeTypes: [...(content.tradeTypes ?? []), { name: '', body: '' }],
+            })
+          }
+        >
+          + Add one
+        </button>
+      </section>
+
+      <section className="admin-section">
         <h2>Selling points</h2>
         <p className="admin-muted">
           Three short reasons to choose you, shown under the prices.

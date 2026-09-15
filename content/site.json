@@ -41,5 +41,27 @@
     "utmCampaign": "reshare_site",
     "utmSource": "voltix"
   },
-  "campaigns": {}
+  "campaigns": {},
+  "tradeTypes": [
+    {
+      "name": "Rise / Fall",
+      "body": "Say whether the price will finish higher or lower. The simplest place to start."
+    },
+    {
+      "name": "Even / Odd",
+      "body": "Call whether the last digit of the price lands odd or even."
+    },
+    {
+      "name": "Over / Under",
+      "body": "Pick a number and say whether the last digit finishes above or below it."
+    },
+    {
+      "name": "Matches / Differs",
+      "body": "Choose a digit from 0 to 9 and say whether the last digit will match it."
+    },
+    {
+      "name": "Accumulators",
+      "body": "Your stake grows on every tick the price stays inside a range, and you can close any time. If the price leaves the range, the stake is lost."
+    }
+  ]
 }

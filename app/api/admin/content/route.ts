@@ -49,6 +49,17 @@ function validate(body: unknown): { ok: true; value: SiteContent } | { ok: false
       return { ok: false, error: 'feature' };
   }
 
+  // Optional: older saved documents predate this field.
+  if (b.tradeTypes !== undefined) {
+    if (!Array.isArray(b.tradeTypes) || b.tradeTypes.length > 12)
+      return { ok: false, error: 'trade_types' };
+    for (const t of b.tradeTypes) {
+      const tt = t as Record<string, unknown>;
+      if (!str(tt.name, 60) || !str(tt.body, 400))
+        return { ok: false, error: 'trade_type' };
+    }
+  }
+
   const checkCampaign = (c: unknown): boolean => {
     const cc = c as Record<string, unknown>;
     return (

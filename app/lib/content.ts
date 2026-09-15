@@ -23,11 +23,14 @@ export type Campaign = {
 
 export type Market = { symbol: string; name: string };
 export type Feature = { title: string; body: string };
+/** Deriv contract types, listed so visitors recognise what is on offer there. */
+export type TradeType = { name: string; body: string };
 
 export type SiteContent = {
   brand: string;
   markets: Market[];
   features: Feature[];
+  tradeTypes?: TradeType[];
   defaultCampaign: Campaign;
   campaigns: Record<string, Campaign>;
 };

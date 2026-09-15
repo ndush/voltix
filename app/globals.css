@@ -1504,3 +1504,38 @@ a.btn-primary {
 .stat-n.paid { color: #4ade80; }
 
 .stat-l { font-size: 11.5px; color: #7b8494; }
+
+/* ---- what you can trade ---- */
+.tradetypes {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 10px 40px 30px;
+}
+
+.tradetypes h2 {
+  font-size: 22px;
+  letter-spacing: -.015em;
+  margin-bottom: 4px;
+}
+
+.tt-lead { color: #7b8494; font-size: 13.5px; margin-bottom: 20px; }
+
+.tt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.tt {
+  background: #131824;
+  border: 1px solid #1c2230;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.tt h3 { font-size: 15px; margin-bottom: 6px; }
+.tt p { color: #8b94a5; font-size: 13px; line-height: 1.55; }
+
+@media (max-width: 520px) {
+  .tradetypes { padding: 10px 20px 24px; }
+}
