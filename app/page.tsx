@@ -76,11 +76,14 @@ export default async function Home({
             All of these run on the same round-the-clock synthetic indices.
           </p>
           <div className="tt-grid">
+            {/* Each card is a link. On a page whose whole job is one tap,
+                five panels that do nothing are five wasted chances. */}
             {content.tradeTypes.map((t) => (
-              <div key={t.name} className="tt">
+              <a key={t.name} className="tt" href={href} rel="nofollow sponsored">
                 <h3>{t.name}</h3>
                 <p>{t.body}</p>
-              </div>
+                <span className="tt-go">Trade this on Deriv →</span>
+              </a>
             ))}
           </div>
         </section>

@@ -1527,14 +1527,33 @@ a.btn-primary {
 }
 
 .tt {
+  display: block;
   background: #131824;
   border: 1px solid #1c2230;
   border-radius: 12px;
   padding: 18px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .15s ease, transform .12s ease;
 }
+
+.tt:hover { border-color: #ff444f; }
+.tt:active { transform: scale(.99); }
 
 .tt h3 { font-size: 15px; margin-bottom: 6px; }
 .tt p { color: #8b94a5; font-size: 13px; line-height: 1.55; }
+
+.tt-go {
+  display: inline-block;
+  margin-top: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ff444f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt { transition: none; }
+}
 
 @media (max-width: 520px) {
   .tradetypes { padding: 10px 20px 24px; }
