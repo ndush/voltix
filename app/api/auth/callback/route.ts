@@ -1,5 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { tradingEnabled } from '@/app/lib/affiliate';
+import {
+  PARTNER_FLOW_COOKIE,
+  PARTNER_TOKEN_COOKIE,
+} from '@/app/lib/partner';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,6 +15,16 @@ export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
   const savedState = cookieStore.get('oauth_state')?.value;
   const codeVerifier = cookieStore.get('pkce_verifier')?.value;
+
+  // One registered redirect serves two flows: the owner connecting their
+  // partner account, and (when enabled) a visitor signing in to trade. A
+  // cookie set at the start says which is in progress.
+  const isPartnerFlow = cookieStore.get(PARTNER_FLOW_COOKIE)?.value === '1';
+  const base = process.env.NEXT_PUBLIC_BASE_URL!;
+
+  if (!isPartnerFlow && !tradingEnabled()) {
+    return NextResponse.redirect(base);
+  }
 
   // Validate CSRF state
   if (!state || state !== savedState) {
@@ -43,6 +58,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_BASE_URL}/?error=token_exchange_failed`
     );
+  }
+
+  if (isPartnerFlow) {
+    const res = NextResponse.redirect(`${base}/admin?connected=1`);
+    res.cookies.set(PARTNER_TOKEN_COOKIE, data.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: data.expires_in || 3600,
+      path: '/',
+    });
+    res.cookies.delete('pkce_verifier');
+    res.cookies.delete('oauth_state');
+    res.cookies.delete(PARTNER_FLOW_COOKIE);
+    return res;
   }
 
   // Set session cookie with access token (httpOnly for security)

@@ -268,6 +268,8 @@ export default function Admin() {
         onChange={(patch) => setCampaign(null, patch)}
       />
 
+      <Earnings />
+
       <details className="fold">
         <summary>
           <span className="fold-title">The rest of the page</span>
@@ -471,6 +473,163 @@ const SYMBOL_CHOICES: { code: string; label: string }[] = [
 ];
 
 type EditorRow = { email: string; removable: boolean; isYou: boolean };
+
+type Overview = {
+  currency: string;
+  period: { start_date: string; end_date: string };
+  signups: {
+    total: number;
+    real_accounts: number;
+    first_time_depositors: number;
+    first_time_traders: number;
+  };
+  activity: { paid: number; pending: number; active_traders: number };
+};
+
+/**
+ * Figures read live from Deriv. Nothing here is stored by this site — it holds
+ * no record of who signed up, only what Deriv reports back.
+ */
+function Earnings() {
+  const [days, setDays] = useState(30);
+  const [state, setState] = useState<
+    | { kind: 'loading' }
+    | { kind: 'disconnected' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ready'; data: Overview }
+  >({ kind: 'loading' });
+
+  const load = useCallback(async (d: number) => {
+    try {
+      const res = await fetch(`/api/partner/overview?days=${d}`);
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) return { kind: 'ready' as const, data: body.overview as Overview };
+      if (body.error === 'not_connected' || body.error === 'reconnect_needed')
+        return { kind: 'disconnected' as const };
+      return {
+        kind: 'error' as const,
+        message: 'Could not read your figures from Deriv just now.',
+      };
+    } catch {
+      return { kind: 'error' as const, message: 'Could not reach the server.' };
+    }
+  }, []);
+
+  useEffect(() => {
+    let off = false;
+    (async () => {
+      const r = await load(days);
+      if (!off) setState(r);
+    })();
+    return () => {
+      off = true;
+    };
+  }, [load, days]);
+
+  const money = (n: number, cur: string) =>
+    `${n.toFixed(2)}${cur ? ' ' + cur : ''}`;
+
+  return (
+    <section className="admin-section">
+      <h2>Your Deriv earnings</h2>
+      <p className="admin-muted">
+        Read straight from Deriv. This site keeps no record of who signed up —
+        these are Deriv&apos;s own numbers.
+      </p>
+
+      {state.kind === 'loading' && (
+        <p className="admin-muted" style={{ marginTop: 14 }}>
+          Loading…
+        </p>
+      )}
+
+      {state.kind === 'disconnected' && (
+        <div className="connect">
+          <p className="admin-muted">
+            Connect your Deriv partner account to see signups and commission
+            here.
+          </p>
+          <a className="btn-primary" href="/api/partner/connect">
+            Connect Deriv
+          </a>
+        </div>
+      )}
+
+      {state.kind === 'error' && <p className="admin-error">{state.message}</p>}
+
+      {state.kind === 'ready' && (
+        <>
+          <div className="range">
+            {[7, 30, 90].map((d) => (
+              <button
+                key={d}
+                className={`range-btn ${d === days ? 'on' : ''}`}
+                onClick={() => {
+                  setState({ kind: 'loading' });
+                  setDays(d);
+                }}
+              >
+                {d} days
+              </button>
+            ))}
+          </div>
+
+          <div className="stats">
+            <div className="stat big">
+              <span className="stat-n">{state.data.signups.total}</span>
+              <span className="stat-l">Signups</span>
+            </div>
+            <div className="stat">
+              <span className="stat-n">{state.data.signups.real_accounts}</span>
+              <span className="stat-l">Real accounts</span>
+            </div>
+            <div className="stat">
+              <span className="stat-n">
+                {state.data.signups.first_time_depositors}
+              </span>
+              <span className="stat-l">Funded</span>
+            </div>
+            <div className="stat">
+              <span className="stat-n">
+                {state.data.signups.first_time_traders}
+              </span>
+              <span className="stat-l">Started trading</span>
+            </div>
+          </div>
+
+          <div className="stats money">
+            <div className="stat">
+              <span className="stat-n paid">
+                {money(state.data.activity.paid, state.data.currency)}
+              </span>
+              <span className="stat-l">Commission paid</span>
+            </div>
+            <div className="stat">
+              <span className="stat-n">
+                {money(state.data.activity.pending, state.data.currency)}
+              </span>
+              <span className="stat-l">Pending</span>
+            </div>
+            <div className="stat">
+              <span className="stat-n">{state.data.activity.active_traders}</span>
+              <span className="stat-l">Active traders</span>
+            </div>
+          </div>
+
+          <button
+            className="admin-add"
+            onClick={async () => {
+              await fetch('/api/partner/disconnect', { method: 'POST' });
+              setState({ kind: 'disconnected' });
+            }}
+          >
+            Disconnect Deriv
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
 
 function Editors() {
   const [rows, setRows] = useState<EditorRow[] | null>(null);

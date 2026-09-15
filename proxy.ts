@@ -27,10 +27,11 @@ export function proxy(req: NextRequest) {
   }
 
   // ---- Trading ----
+  // The callback is deliberately not listed: it also completes the owner's
+  // partner connection, and refuses the trading flow itself when disabled.
   const isTrading =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/api/deriv') ||
-    pathname === '/api/auth/callback' ||
     pathname === '/api/auth/me';
 
   // Off by default: a referral site must not expose a screen that places
@@ -55,7 +56,6 @@ export const config = {
     '/admin/:path*',
     '/api/admin/:path*',
     '/api/deriv/:path*',
-    '/api/auth/callback',
     '/api/auth/me',
   ],
 };
