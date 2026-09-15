@@ -75,6 +75,17 @@ export function tradingEnabled(): boolean {
  * against all three.
  */
 export function signupUrl(token: string | null, campaign: string, source: string): string {
+  // A partner tracking link, when configured, is the better destination: it
+  // lands on the same signup form with the same token, and additionally
+  // registers the click in the partner dashboard and drops Deriv's own
+  // attribution cookie, so someone who returns days later still counts.
+  //
+  // It rewrites utm_campaign to the value configured on the link, which is why
+  // it is not used when per-campaign tags matter. With no campaigns in use,
+  // there is nothing to lose and click reporting to gain.
+  const tracking = process.env.DERIV_TRACKING_URL?.trim();
+  if (tracking) return tracking;
+
   const base =
     process.env.DERIV_SIGNUP_URL || 'https://home.deriv.com/dashboard/signup';
   const params = new URLSearchParams();
