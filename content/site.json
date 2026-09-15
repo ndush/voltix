@@ -41,42 +41,5 @@
     "utmCampaign": "reshare_site",
     "utmSource": "voltix"
   },
-  "campaigns": {
-    "weekend": {
-      "name": "Weekend push",
-      "headline": "Markets that never close",
-      "subhead": "Synthetic indices trade every day of the week, weekends included. Open a Deriv account and trade whenever suits you.",
-      "cta": "Open an account →",
-      "banner": "Trading right now, including weekends",
-      "utmCampaign": "weekend_push",
-      "utmSource": "voltix"
-    },
-    "demo": {
-      "name": "Free demo",
-      "headline": "Practise before you risk anything",
-      "subhead": "Every Deriv account comes with 10,000 in virtual funds. Trade the real markets with none of your own money until you are ready.",
-      "cta": "Try the free demo →",
-      "banner": "",
-      "utmCampaign": "free_demo",
-      "utmSource": "voltix"
-    },
-    "volatility": {
-      "name": "Volatility 75",
-      "headline": "Trade the Volatility 75",
-      "subhead": "One of Deriv's most active synthetic indices, priced every second, available around the clock.",
-      "cta": "Trade V75 on Deriv →",
-      "banner": "",
-      "utmCampaign": "v75_focus",
-      "utmSource": "voltix"
-    },
-    "whatsapp": {
-      "name": "WhatsApp share",
-      "headline": "Trade on your own schedule",
-      "subhead": "Open a Deriv account in a couple of minutes and trade synthetic indices whenever you have time.",
-      "cta": "Get started →",
-      "banner": "",
-      "utmCampaign": "whatsapp",
-      "utmSource": "voltix"
-    }
-  }
+  "campaigns": {}
 }

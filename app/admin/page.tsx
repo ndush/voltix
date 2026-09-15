@@ -268,79 +268,6 @@ export default function Admin() {
         onChange={(patch) => setCampaign(null, patch)}
       />
 
-      <section className="admin-section">
-        <h2>Campaigns</h2>
-        <p className="admin-muted">
-          A campaign is a second version of your home page with its own link.
-        </p>
-        <p className="admin-muted" style={{ marginTop: 8 }}>
-          Say you want to try a different message on WhatsApp. Make a campaign
-          called <em>whatsapp</em>, give it its own headline, and share that
-          link there instead. Anyone who signs up through it shows up
-          separately in your Deriv reports — so after a week you can see which
-          message actually worked, and do more of that one.
-        </p>
-        {Object.entries(content.campaigns).map(([key, c]) => (
-          <details key={key} className="campaign">
-            <summary>
-              <span className="camp-name">{c.name || key}</span>
-              <a
-                href={`/?c=${encodeURIComponent(key)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="camp-preview"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Open live ↗
-              </a>
-            </summary>
-            <ShareLink campaignKey={key} />
-            <CampaignFields
-              campaign={c}
-              onChange={(patch) => setCampaign(key, patch)}
-            />
-            <button
-              className="admin-remove"
-              onClick={() => {
-                const campaigns = { ...content.campaigns };
-                delete campaigns[key];
-                set({ campaigns });
-              }}
-            >
-              Delete this campaign
-            </button>
-          </details>
-        ))}
-        <button
-          className="admin-add"
-          onClick={() => {
-            const key = prompt(
-              'What should this campaign be called?\n\n' +
-                'Use one word, letters or dashes only — it becomes part of the ' +
-                'link you share. For example "whatsapp" gives you a link ' +
-                'ending in ?c=whatsapp'
-            );
-            if (!key || !/^[a-z0-9_-]{1,40}$/i.test(key)) return;
-            set({
-              campaigns: {
-                ...content.campaigns,
-                [key]: {
-                  name: key,
-                  headline: '',
-                  subhead: '',
-                  cta: 'Start Trading →',
-                  banner: '',
-                  utmCampaign: key,
-                  utmSource: 'voltix',
-                },
-              },
-            });
-          }}
-        >
-          + Add campaign
-        </button>
-      </section>
-
       <details className="fold">
         <summary>
           <span className="fold-title">The rest of the page</span>
@@ -844,42 +771,6 @@ function ChangePassword() {
         </div>
       </form>
     </section>
-  );
-}
-
-/** The whole link, ready to paste into WhatsApp — not developer shorthand. */
-function ShareLink({ campaignKey }: { campaignKey: string }) {
-  const [copied, setCopied] = useState(false);
-  // Safe to read window during render: /admin renders "Loading…" on the
-  // server, so this component only ever mounts on the client.
-  const [href] = useState(() =>
-    typeof window === 'undefined'
-      ? ''
-      : `${window.location.origin}/?c=${encodeURIComponent(campaignKey)}`
-  );
-
-  return (
-    <div className="share">
-      <span className="share-lbl">Share this link</span>
-      <div className="share-row">
-        <code className="share-url">{href || '…'}</code>
-        <button
-          type="button"
-          className="admin-add"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(href);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1800);
-            } catch {
-              setCopied(false);
-            }
-          }}
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-    </div>
   );
 }
 
