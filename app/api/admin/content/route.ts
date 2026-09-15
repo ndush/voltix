@@ -31,7 +31,8 @@ function validate(body: unknown): { ok: true; value: SiteContent } | { ok: false
 
   if (!str(b.brand, 60)) return { ok: false, error: 'brand' };
 
-  if (!Array.isArray(b.markets) || b.markets.length > 12)
+  // Deriv currently lists 13 volatility indices; leave room above that.
+  if (!Array.isArray(b.markets) || b.markets.length > 24)
     return { ok: false, error: 'markets' };
   for (const m of b.markets) {
     const mm = m as Record<string, unknown>;
