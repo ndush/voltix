@@ -26,18 +26,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(base);
   }
 
-  // Validate CSRF state
-  if (!state || state !== savedState) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/?error=state_mismatch`
+  // A failed partner connection belongs back in the admin with an
+  // explanation, not on the public home page with a raw error code.
+  const failTo = (reason: string) =>
+    NextResponse.redirect(
+      isPartnerFlow
+        ? `${base}/admin?connect_error=${reason}`
+        : `${base}/?error=${reason}`
     );
-  }
 
-  if (error || !code || !codeVerifier) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/?error=${error || 'missing_code'}`
-    );
-  }
+  if (error) return failTo(error);
+  if (!state || state !== savedState) return failTo('state_mismatch');
+  if (!code || !codeVerifier) return failTo('missing_code');
 
   // Exchange authorization code for access token
   const tokenRes = await fetch(process.env.DERIV_TOKEN_URL!, {
@@ -54,11 +54,7 @@ export async function GET(req: NextRequest) {
 
   const data = await tokenRes.json();
 
-  if (!data.access_token) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/?error=token_exchange_failed`
-    );
-  }
+  if (!data.access_token) return failTo('token_exchange_failed');
 
   if (isPartnerFlow) {
     const res = NextResponse.redirect(`${base}/admin?connected=1`);

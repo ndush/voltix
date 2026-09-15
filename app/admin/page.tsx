@@ -490,8 +490,23 @@ type Overview = {
  * Figures read live from Deriv. Nothing here is stored by this site — it holds
  * no record of who signed up, only what Deriv reports back.
  */
+const CONNECT_ERRORS: Record<string, string> = {
+  invalid_scope:
+    'Deriv refused the request because your app is not allowed to read partner reports. In Deriv\u2019s Applications Manager, add the application_read scope to this app, then try again.',
+  access_denied: 'You declined the request on Deriv. Try again to connect.',
+  state_mismatch: 'That attempt expired. Please try again.',
+  missing_code: 'That attempt expired. Please try again.',
+  token_exchange_failed: 'Deriv could not complete the connection. Try again.',
+};
+
 function Earnings() {
   const [days, setDays] = useState(30);
+  // Set by the callback when Deriv refuses; read once on mount.
+  const [connectError] = useState(() =>
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('connect_error')
+  );
   const [state, setState] = useState<
     | { kind: 'loading' }
     | { kind: 'disconnected' }
@@ -540,6 +555,13 @@ function Earnings() {
       {state.kind === 'loading' && (
         <p className="admin-muted" style={{ marginTop: 14 }}>
           Loading…
+        </p>
+      )}
+
+      {connectError && (
+        <p className="admin-error">
+          {CONNECT_ERRORS[connectError] ??
+            'Deriv could not complete the connection.'}
         </p>
       )}
 
