@@ -9,13 +9,7 @@ type Quote = { price: number; dir: 'up' | 'down' | null };
  * Live prices for the landing page. Kept as its own client component so the
  * marketing copy around it stays server-rendered and indexable.
  */
-export function MarketTicker({
-  markets,
-  href,
-}: {
-  markets: Market[];
-  href: string;
-}) {
+export function MarketTicker({ markets }: { markets: Market[] }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const last = useRef<Record<string, number>>({});
 
@@ -51,12 +45,10 @@ export function MarketTicker({
     return () => ws.close();
   }, [markets]);
 
-  // Each tile is a link. Someone watching a price tick and tapping it is
-  // showing intent; leaving that inert meant they had to go and find a button.
   const tile = (m: Market) => {
     const q = quotes[m.symbol];
     return (
-      <a key={m.symbol} className="card" href={href} rel="nofollow sponsored">
+      <div key={m.symbol} className="card">
         <div className="card-name">{m.name}</div>
         <div
           className={`card-price ${
@@ -66,8 +58,7 @@ export function MarketTicker({
           {q ? q.price.toFixed(4) : '—'}
         </div>
         <div className="card-sym">{m.symbol}</div>
-        <span className="card-go">Trade on Deriv →</span>
-      </a>
+      </div>
     );
   };
 
