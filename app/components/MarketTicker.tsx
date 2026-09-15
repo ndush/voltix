@@ -45,24 +45,47 @@ export function MarketTicker({ markets }: { markets: Market[] }) {
     return () => ws.close();
   }, [markets]);
 
+  const tile = (m: Market) => {
+    const q = quotes[m.symbol];
+    return (
+      <div key={m.symbol} className="card">
+        <div className="card-name">{m.name}</div>
+        <div
+          className={`card-price ${
+            q?.dir === 'up' ? 'up' : q?.dir === 'down' ? 'down' : ''
+          }`}
+        >
+          {q ? q.price.toFixed(4) : '—'}
+        </div>
+        <div className="card-sym">{m.symbol}</div>
+      </div>
+    );
+  };
+
+  // The 1s indices tick every second rather than every two. They are a
+  // distinct product to this audience, so they get their own heading rather
+  // than being mixed into one long undifferentiated grid.
+  const oneSecond = markets.filter((m) => m.symbol.startsWith('1HZ'));
+  const standard = markets.filter((m) => !m.symbol.startsWith('1HZ'));
+
   return (
-    <section id="markets" className="markets">
-      {markets.map((m) => {
-        const q = quotes[m.symbol];
-        return (
-          <div key={m.symbol} className="card">
-            <div className="card-name">{m.name}</div>
-            <div
-              className={`card-price ${
-                q?.dir === 'up' ? 'up' : q?.dir === 'down' ? 'down' : ''
-              }`}
-            >
-              {q ? q.price.toFixed(4) : '—'}
-            </div>
-            <div className="card-sym">{m.symbol}</div>
-          </div>
-        );
-      })}
+    <section id="markets" className="markets-wrap">
+      {standard.length > 0 && (
+        <>
+          {oneSecond.length > 0 && <h2 className="mk-head">Volatility indices</h2>}
+          <div className="markets">{standard.map(tile)}</div>
+        </>
+      )}
+
+      {oneSecond.length > 0 && (
+        <>
+          <h2 className="mk-head">
+            One-second indices
+            <span className="mk-sub">a new price every second</span>
+          </h2>
+          <div className="markets">{oneSecond.map(tile)}</div>
+        </>
+      )}
     </section>
   );
 }

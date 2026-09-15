@@ -353,7 +353,7 @@ export default function Admin() {
           if (spare.length === 0) {
             return (
               <p className="admin-muted" style={{ marginTop: 15 }}>
-                All available markets are already on your page.
+                All 13 volatility indices are already on your page.
               </p>
             );
           }
@@ -523,6 +523,16 @@ const SYMBOL_CHOICES: { code: string; label: string }[] = [
   { code: 'R_50', label: 'Volatility 50' },
   { code: 'R_75', label: 'Volatility 75' },
   { code: 'R_100', label: 'Volatility 100' },
+  // One-second versions tick every second rather than every two, which is
+  // what the digits and accumulators audience tends to want.
+  { code: '1HZ10V', label: 'Volatility 10 (1s)' },
+  { code: '1HZ15V', label: 'Volatility 15 (1s)' },
+  { code: '1HZ25V', label: 'Volatility 25 (1s)' },
+  { code: '1HZ30V', label: 'Volatility 30 (1s)' },
+  { code: '1HZ50V', label: 'Volatility 50 (1s)' },
+  { code: '1HZ75V', label: 'Volatility 75 (1s)' },
+  { code: '1HZ90V', label: 'Volatility 90 (1s)' },
+  { code: '1HZ100V', label: 'Volatility 100 (1s)' },
 ];
 
 type EditorRow = { email: string; removable: boolean; isYou: boolean };
