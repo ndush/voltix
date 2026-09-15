@@ -67,7 +67,7 @@ export default async function Home({
         </p>
       </section>
 
-      <MarketTicker markets={content.markets} />
+      <MarketTicker markets={content.markets} href={href} />
 
       {content.tradeTypes?.length ? (
         <section className="tradetypes">

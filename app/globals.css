@@ -96,11 +96,43 @@ body {
 }
 
 .card {
+  display: block;
+  position: relative;
   background: #131824;
   border: 1px solid #1c2230;
   border-radius: 11px;
   padding: 14px 12px;
   text-align: center;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .15s ease;
+}
+
+.card:hover { border-color: #ff444f; }
+.card:active { transform: scale(.99); }
+
+/* Kept out of the way until wanted: thirteen tiles each shouting a call to
+   action would be noise, but the affordance has to exist. */
+.card-go {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #ff444f;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.card:hover .card-go,
+.card:focus-visible .card-go { opacity: 1; }
+
+@media (hover: none) {
+  /* No hover on touch, so show it quietly all the time. */
+  .card-go { opacity: .75; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .card-go { transition: none; }
 }
 
 /* ========================== dashboard ========================== */
